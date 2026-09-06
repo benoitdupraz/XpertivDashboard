@@ -20,7 +20,6 @@ import {
   Cake,
   Mail,
   Phone,
-  MapPin,
   Eye,
   Sparkles,
   PartyPopper,
@@ -184,6 +183,10 @@ function statutDe(employe) {
   return estActif(employe) ? "Actif" : "Inactif";
 }
 
+function nomComplet(employe) {
+  return [employe.prenom, employe.nom].filter(Boolean).join(" ") || "—";
+}
+
 const AVATAR_PALETTE = [
   { bg: "#E7EEF4", fg: "#33587A" },
   { bg: "#EEE7F3", fg: "#6B4C8A" },
@@ -248,13 +251,14 @@ function matriculeValide(m) {
 const SEED_EMPLOYES = [
   {
     id: "emp-1",
-    nom: "Camille Robert",
+    prenom: "Camille",
+    nom: "Robert",
     matricule: "00001",
     dateDebut: "2024-03-01",
     dateNaissance: "1994-09-02",
-    email: "camille.robert@xpertiv.fr",
+    emailPro: "camille.robert@xpertiv.fr",
+    emailPerso: "camille.robert@gmail.com",
     telephone: "06 12 34 56 78",
-    site: "Paris",
     profil: "Technique",
     modules: [],
     dateFinContrat: null,
@@ -264,13 +268,14 @@ const SEED_EMPLOYES = [
   },
   {
     id: "emp-2",
-    nom: "Nadia Ferreira",
+    prenom: "Nadia",
+    nom: "Ferreira",
     matricule: "00002",
     dateDebut: "2023-09-20",
     dateNaissance: "1990-01-14",
-    email: "nadia.ferreira@xpertiv.fr",
+    emailPro: "nadia.ferreira@xpertiv.fr",
+    emailPerso: "nadia.ferreira@outlook.com",
     telephone: "06 98 76 54 32",
-    site: "Lyon",
     profil: "Fonctionnel",
     modules: ["Finance", "Paie"],
     dateFinContrat: null,
@@ -280,13 +285,14 @@ const SEED_EMPLOYES = [
   },
   {
     id: "emp-3",
-    nom: "Julien Massé",
+    prenom: "Julien",
+    nom: "Massé",
     matricule: "00003",
     dateDebut: "2022-11-10",
     dateNaissance: "1988-06-23",
-    email: "julien.masse@xpertiv.fr",
+    emailPro: "julien.masse@xpertiv.fr",
+    emailPerso: "julien.masse@yahoo.fr",
     telephone: "06 45 67 89 10",
-    site: "Bordeaux",
     profil: "Technique",
     modules: [],
     dateFinContrat: "2026-08-12",
@@ -962,7 +968,7 @@ export default function App() {
 
   const assignPoste = (posteId, employeId, date) => {
     const employe = employes.find((e) => e.id === employeId);
-    const nom = employe ? employe.nom : "Salarié inconnu";
+    const nom = employe ? nomComplet(employe) : "Salarié inconnu";
     persistPostes(
       postes.map((p) => {
         if (p.id !== posteId) return p;
@@ -1018,7 +1024,7 @@ export default function App() {
 
   const assignVoiture = (voitureId, employeId, date) => {
     const employe = employes.find((e) => e.id === employeId);
-    const nom = employe ? employe.nom : "Salarié inconnu";
+    const nom = employe ? nomComplet(employe) : "Salarié inconnu";
     persistVoitures(
       voitures.map((v) => {
         if (v.id !== voitureId) return v;
@@ -1369,7 +1375,7 @@ function HRDashboard({ employesActifs, onOpenFiche }) {
             onOpenFiche={onOpenFiche}
             renderItem={(it) => (
               <>
-                <span style={{ fontWeight: 600 }}>{it.employe.nom}</span>
+                <span style={{ fontWeight: 600 }}>{nomComplet(it.employe)}</span>
                 <span style={{ color: "#9AA6B5" }}> · {formatDateCourt(it.next)} ({it.age} ans, {libelleEcheance(it.jours)})</span>
               </>
             )}
@@ -1382,7 +1388,7 @@ function HRDashboard({ employesActifs, onOpenFiche }) {
             onOpenFiche={onOpenFiche}
             renderItem={(it) => (
               <>
-                <span style={{ fontWeight: 600 }}>{it.employe.nom}</span>
+                <span style={{ fontWeight: 600 }}>{nomComplet(it.employe)}</span>
                 <span style={{ color: "#9AA6B5" }}>
                   {" "}
                   · {it.annees} an{it.annees > 1 ? "s" : ""} ({libelleEcheance(it.jours)})
@@ -1398,7 +1404,7 @@ function HRDashboard({ employesActifs, onOpenFiche }) {
             onOpenFiche={onOpenFiche}
             renderItem={(it) => (
               <>
-                <span style={{ fontWeight: 600 }}>{it.employe.nom}</span>
+                <span style={{ fontWeight: 600 }}>{nomComplet(it.employe)}</span>
                 <span style={{ color: "#9AA6B5" }}> · arrivé{it.jours === 0 ? " aujourd'hui" : ` il y a ${it.jours} j`}</span>
               </>
             )}
@@ -1435,7 +1441,7 @@ function MiniListDark({ icon, title, items, emptyText, renderItem, onOpenFiche }
                 textAlign: "left",
               }}
             >
-              <Avatar nom={it.employe.nom} size={24} />
+              <Avatar nom={nomComplet(it.employe)} size={24} />
               <div style={{ fontSize: 12.5, color: "#E7EBEF", lineHeight: 1.3 }}>{renderItem(it)}</div>
             </button>
           ))}
@@ -1485,7 +1491,7 @@ function SalariesView({
       .filter((e) => (filterStatut === "Tous" ? true : statutDe(e) === filterStatut))
       .filter((e) => {
         if (!q) return true;
-        return [e.nom, e.matricule, e.profil, ...(e.modules || [])].join(" ").toLowerCase().includes(q);
+        return [e.prenom, e.nom, e.matricule, e.profil, ...(e.modules || [])].join(" ").toLowerCase().includes(q);
       })
       .sort((a, b) => a.nom.localeCompare(b.nom));
   }, [employes, search, filterStatut]);
@@ -1576,8 +1582,8 @@ function SalariesView({
                             textAlign: "left",
                           }}
                         >
-                          <Avatar nom={e.nom} size={30} />
-                          <span style={{ fontWeight: 600, color: "#1B2430" }}>{e.nom}</span>
+                          <Avatar nom={nomComplet(e)} size={30} />
+                          <span style={{ fontWeight: 600, color: "#1B2430" }}>{nomComplet(e)}</span>
                         </button>
                       </td>
                       <td style={{ padding: "12px 14px" }}>
@@ -1672,7 +1678,7 @@ function SalariesView({
       {confirmDeactivate && (
         <ConfirmModal
           title="Terminer le contrat maintenant"
-          message={`La date de fin de contrat de ${confirmDeactivate.nom} sera fixée à aujourd'hui et il/elle passera automatiquement en inactif. Son PC et son véhicule éventuellement attribués seront remis au statut « Disponible ».`}
+          message={`La date de fin de contrat de ${nomComplet(confirmDeactivate)} sera fixée à aujourd'hui et il/elle passera automatiquement en inactif. Son PC et son véhicule éventuellement attribués seront remis au statut « Disponible ».`}
           confirmLabel="Confirmer"
           onConfirm={() => {
             terminerContrat(confirmDeactivate.id);
@@ -1685,7 +1691,7 @@ function SalariesView({
       {confirmDelete && (
         <ConfirmModal
           title="Supprimer ce salarié"
-          message={`Supprimer définitivement ${confirmDelete.nom} ? Ses équipements seront remis à disposition et son historique de salarié sera perdu.`}
+          message={`Supprimer définitivement ${nomComplet(confirmDelete)} ? Ses équipements seront remis à disposition et son historique de salarié sera perdu.`}
           confirmLabel="Supprimer"
           danger
           onConfirm={() => {
@@ -1774,7 +1780,7 @@ function FicheSalarieModal({
   const [confirmReturnPoste, setConfirmReturnPoste] = useState(false);
   const [confirmReturnVoiture, setConfirmReturnVoiture] = useState(false);
 
-  const avatar = avatarStyle(employe.nom);
+  const avatar = avatarStyle(nomComplet(employe));
   const age = calculerAge(employe.dateNaissance);
   const prochainAnniv = employe.dateNaissance ? prochaineOccurrence(employe.dateNaissance) : null;
   const joursAnniv = prochainAnniv ? joursAvant(prochainAnniv) : null;
@@ -1814,10 +1820,10 @@ function FicheSalarieModal({
             flexShrink: 0,
           }}
         >
-          {initiales(employe.nom)}
+          {initiales(nomComplet(employe))}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 700, color: "#1B2430", fontFamily: "var(--font-display)" }}>{employe.nom}</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: "#1B2430", fontFamily: "var(--font-display)" }}>{nomComplet(employe)}</div>
           <div style={{ fontSize: 11.5, color: "#8B96A3", fontFamily: "var(--font-mono)", marginTop: 1 }}>Matricule {employe.matricule}</div>
           <div style={{ display: "flex", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
             <Badge label={employe.profil} styleMap={PROFIL_STYLES} />
@@ -1861,10 +1867,10 @@ function FicheSalarieModal({
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, marginBottom: 6 }}>
         <InfoRow icon={<Cake size={13} />} label="Date de naissance" value={employe.dateNaissance ? `${formatDate(employe.dateNaissance)} (${age} ans)` : null} />
-        <InfoRow icon={<UserRound size={13} />} label="Date de début" value={`${formatDate(employe.dateDebut)} · ${anciennete(employe.dateDebut)}`} />
-        <InfoRow icon={<Mail size={13} />} label="Email" value={employe.email} />
+        <InfoRow icon={<UserRound size={13} />} label="Début de contrat" value={`${formatDate(employe.dateDebut)} · ${anciennete(employe.dateDebut)}`} />
+        <InfoRow icon={<Mail size={13} />} label="Email pro" value={employe.emailPro} />
+        <InfoRow icon={<Mail size={13} />} label="Email perso" value={employe.emailPerso} />
         <InfoRow icon={<Phone size={13} />} label="Téléphone" value={employe.telephone} />
-        <InfoRow icon={<MapPin size={13} />} label="Site" value={employe.site} />
         <InfoRow
           icon={<UserX size={13} />}
           label="Fin de contrat"
@@ -1959,7 +1965,7 @@ function FicheSalarieModal({
 
       {showAssignPoste && (
         <AssignModal
-          title={`Attribuer un PC — ${employe.nom}`}
+          title={`Attribuer un PC — ${nomComplet(employe)}`}
           options={postesDisponibles}
           getLabel={(p) => `${p.marque} ${p.modele} — ${p.numeroSerie}`}
           emptyMessage="Aucun poste disponible actuellement dans le parc."
@@ -1973,7 +1979,7 @@ function FicheSalarieModal({
 
       {showAssignVoiture && (
         <AssignModal
-          title={`Attribuer un véhicule — ${employe.nom}`}
+          title={`Attribuer un véhicule — ${nomComplet(employe)}`}
           options={voituresDisponibles}
           getLabel={(v) => `${v.marque} ${v.modele} — ${v.immatriculation}`}
           emptyMessage="Aucun véhicule disponible actuellement dans la flotte."
@@ -1988,7 +1994,7 @@ function FicheSalarieModal({
       {confirmReturnPoste && (
         <ConfirmModal
           title="Retourner le PC"
-          message={`${employe.nom} rend ${poste.marque} ${poste.modele}. Le poste repassera au statut « Disponible » et la date de désattribution sera enregistrée.`}
+          message={`${nomComplet(employe)} rend ${poste.marque} ${poste.modele}. Le poste repassera au statut « Disponible » et la date de désattribution sera enregistrée.`}
           confirmLabel="Confirmer le retour"
           onConfirm={() => {
             returnPoste(poste.id);
@@ -2001,7 +2007,7 @@ function FicheSalarieModal({
       {confirmReturnVoiture && (
         <ConfirmModal
           title="Retourner le véhicule"
-          message={`${employe.nom} rend ${voiture.marque} ${voiture.modele}. Le véhicule repassera au statut « Disponible » et la date de désattribution sera enregistrée.`}
+          message={`${nomComplet(employe)} rend ${voiture.marque} ${voiture.modele}. Le véhicule repassera au statut « Disponible » et la date de désattribution sera enregistrée.`}
           confirmLabel="Confirmer le retour"
           onConfirm={() => {
             returnVoiture(voiture.id);
@@ -2015,13 +2021,14 @@ function FicheSalarieModal({
 }
 
 function EmployeFormModal({ initial, employes, onClose, onSave }) {
+  const [prenom, setPrenom] = useState(initial?.prenom || "");
   const [nom, setNom] = useState(initial?.nom || "");
   const [matricule, setMatricule] = useState(initial?.matricule || genererMatricule(employes));
   const [dateDebut, setDateDebut] = useState(initial?.dateDebut || todayISO());
   const [dateNaissance, setDateNaissance] = useState(initial?.dateNaissance || "");
-  const [email, setEmail] = useState(initial?.email || "");
+  const [emailPro, setEmailPro] = useState(initial?.emailPro || "");
+  const [emailPerso, setEmailPerso] = useState(initial?.emailPerso || "");
   const [telephone, setTelephone] = useState(initial?.telephone || "");
-  const [site, setSite] = useState(initial?.site || "");
   const [dateFinContrat, setDateFinContrat] = useState(initial?.dateFinContrat || "");
   const [contactUrgenceNom, setContactUrgenceNom] = useState(initial?.contactUrgenceNom || "");
   const [contactUrgenceLien, setContactUrgenceLien] = useState(initial?.contactUrgenceLien || "");
@@ -2031,8 +2038,8 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
   const [error, setError] = useState("");
 
   const submit = () => {
-    if (!nom.trim()) {
-      setError("Le nom du salarié est requis.");
+    if (!prenom.trim() || !nom.trim()) {
+      setError("Le prénom et le nom du salarié sont requis.");
       return;
     }
     if (!matriculeValide(matricule)) {
@@ -2046,13 +2053,14 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
     }
     onSave(
       {
+        prenom: prenom.trim(),
         nom: nom.trim(),
         matricule,
         dateDebut,
         dateNaissance,
-        email: email.trim(),
+        emailPro: emailPro.trim(),
+        emailPerso: emailPerso.trim(),
         telephone: telephone.trim(),
-        site: site.trim(),
         dateFinContrat: dateFinContrat || null,
         contactUrgenceNom: contactUrgenceNom.trim(),
         contactUrgenceLien: contactUrgenceLien.trim(),
@@ -2067,11 +2075,18 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
   return (
     <Modal title={initial ? "Modifier le salarié" : "Nouveau salarié"} onClose={onClose}>
       <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ flex: 2 }}>
-          <Field label="Nom">
-            <input style={inputStyle} value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Prénom Nom" />
+        <div style={{ flex: 1 }}>
+          <Field label="Prénom">
+            <input style={inputStyle} value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Camille" />
           </Field>
         </div>
+        <div style={{ flex: 1 }}>
+          <Field label="Nom">
+            <input style={inputStyle} value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Robert" />
+          </Field>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
           <Field label="Matricule" hint="5 chiffres">
             <input
@@ -2083,23 +2098,16 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
             />
           </Field>
         </div>
-      </div>
-      <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <Field label="Date de début">
+          <Field label="Début de contrat">
             <input type="date" style={inputStyle} value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} />
           </Field>
         </div>
-        <div style={{ flex: 1 }}>
-          <Field label="Date de naissance">
-            <input type="date" style={inputStyle} value={dateNaissance} onChange={(e) => setDateNaissance(e.target.value)} />
-          </Field>
-        </div>
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <Field label="Email">
-            <input style={inputStyle} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prenom.nom@xpertiv.fr" />
+          <Field label="Date de naissance">
+            <input type="date" style={inputStyle} value={dateNaissance} onChange={(e) => setDateNaissance(e.target.value)} />
           </Field>
         </div>
         <div style={{ flex: 1 }}>
@@ -2108,9 +2116,18 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
           </Field>
         </div>
       </div>
-      <Field label="Site / localisation">
-        <input style={inputStyle} value={site} onChange={(e) => setSite(e.target.value)} placeholder="Paris, Lyon, Télétravail…" />
-      </Field>
+      <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <Field label="Email professionnel">
+            <input style={inputStyle} value={emailPro} onChange={(e) => setEmailPro(e.target.value)} placeholder="prenom.nom@xpertiv.fr" />
+          </Field>
+        </div>
+        <div style={{ flex: 1 }}>
+          <Field label="Email personnel">
+            <input style={inputStyle} value={emailPerso} onChange={(e) => setEmailPerso(e.target.value)} placeholder="prenom.nom@gmail.com" />
+          </Field>
+        </div>
+      </div>
 
       <div style={{ fontSize: 11, fontWeight: 700, color: "#5C6B7A", textTransform: "uppercase", letterSpacing: "0.04em", margin: "16px 0 8px" }}>
         Contact d'urgence
@@ -2372,7 +2389,7 @@ function PostesView({ postes, employes, savePoste, deletePoste, assignPoste, ret
         <AssignModal
           title={`Attribuer — ${assigning.marque} ${assigning.modele}`}
           options={employesActifs}
-          getLabel={(e) => `${e.nom} — ${e.profil}`}
+          getLabel={(e) => `${nomComplet(e)} — ${e.profil}`}
           emptyMessage="Aucun salarié actif à qui attribuer ce poste."
           onAssign={(employeId, date) => {
             assignPoste(assigning.id, employeId, date);
@@ -2763,7 +2780,7 @@ function VoituresView({ voitures, employes, saveVoiture, deleteVoiture, assignVo
         <AssignModal
           title={`Attribuer — ${assigning.marque} ${assigning.modele}`}
           options={employesActifs}
-          getLabel={(e) => `${e.nom} — ${e.profil}`}
+          getLabel={(e) => `${nomComplet(e)} — ${e.profil}`}
           emptyMessage="Aucun salarié actif à qui attribuer ce véhicule."
           onAssign={(employeId, date) => {
             assignVoiture(assigning.id, employeId, date);
