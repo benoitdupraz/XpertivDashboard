@@ -929,12 +929,15 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
+      const usingClaudeStorage = typeof window !== "undefined" && !!window.storage;
       const load = async (key, seed) => {
         try {
           const res = await storage.get(key, false);
           return res && res.value ? JSON.parse(res.value) : seed;
         } catch (e) {
-          return seed;
+          // En dehors de Claude (déploiement réel), une clé absente signifie
+          // une base réellement vide — jamais les données de démonstration.
+          return usingClaudeStorage ? seed : [];
         }
       };
       const [e, p, v] = await Promise.all([
