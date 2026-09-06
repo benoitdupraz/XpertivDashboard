@@ -214,6 +214,7 @@ const EMPLOYE_CHAMP_LABELS = {
   dateFinContrat: "Fin de contrat",
   profil: "Profil",
   modules: "Modules",
+  contactUrgencePrenom: "Contact d'urgence (prénom)",
   contactUrgenceNom: "Contact d'urgence (nom)",
   contactUrgenceLien: "Contact d'urgence (lien)",
   contactUrgenceTelephone: "Contact d'urgence (téléphone)",
@@ -347,7 +348,8 @@ const SEED_EMPLOYES = [
     profil: "Technique",
     modules: [],
     dateFinContrat: null,
-    contactUrgenceNom: "Marc Robert",
+    contactUrgencePrenom: "Marc",
+    contactUrgenceNom: "Robert",
     contactUrgenceLien: "Conjoint",
     contactUrgenceTelephone: "06 11 22 33 44",
   },
@@ -364,7 +366,8 @@ const SEED_EMPLOYES = [
     profil: "Fonctionnel",
     modules: ["Finance", "Paie"],
     dateFinContrat: null,
-    contactUrgenceNom: "Sofia Ferreira",
+    contactUrgencePrenom: "Sofia",
+    contactUrgenceNom: "Ferreira",
     contactUrgenceLien: "Sœur",
     contactUrgenceTelephone: "06 22 33 44 55",
   },
@@ -381,6 +384,7 @@ const SEED_EMPLOYES = [
     profil: "Technique",
     modules: [],
     dateFinContrat: "2026-08-12",
+    contactUrgencePrenom: "",
     contactUrgenceNom: "",
     contactUrgenceLien: "",
     contactUrgenceTelephone: "",
@@ -1775,7 +1779,7 @@ function SalariesView({
         if (!q) return true;
         return [e.prenom, e.nom, e.matricule, e.profil, ...(e.modules || [])].join(" ").toLowerCase().includes(q);
       })
-      .sort((a, b) => a.nom.localeCompare(b.nom));
+      .sort((a, b) => a.matricule.localeCompare(b.matricule));
   }, [employes, search, filterStatut]);
 
   return (
@@ -2167,7 +2171,7 @@ function FicheSalarieModal({
         />
       </div>
 
-      {(employe.contactUrgenceNom || employe.contactUrgenceTelephone) && (
+      {(employe.contactUrgencePrenom || employe.contactUrgenceNom || employe.contactUrgenceTelephone) && (
         <div
           style={{
             border: "1px solid #E1E5E9",
@@ -2187,7 +2191,7 @@ function FicheSalarieModal({
               Contact d'urgence{employe.contactUrgenceLien ? ` · ${employe.contactUrgenceLien}` : ""}
             </div>
             <div style={{ fontSize: 13, color: "#1B2430", fontWeight: 500 }}>
-              {employe.contactUrgenceNom || "—"}
+              {[employe.contactUrgencePrenom, employe.contactUrgenceNom].filter(Boolean).join(" ") || "—"}
               {employe.contactUrgenceTelephone ? ` — ${employe.contactUrgenceTelephone}` : ""}
             </div>
           </div>
@@ -2332,6 +2336,7 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
   const [emailPerso, setEmailPerso] = useState(initial?.emailPerso || "");
   const [telephone, setTelephone] = useState(initial?.telephone || "");
   const [dateFinContrat, setDateFinContrat] = useState(initial?.dateFinContrat || "");
+  const [contactUrgencePrenom, setContactUrgencePrenom] = useState(initial?.contactUrgencePrenom || "");
   const [contactUrgenceNom, setContactUrgenceNom] = useState(initial?.contactUrgenceNom || "");
   const [contactUrgenceLien, setContactUrgenceLien] = useState(initial?.contactUrgenceLien || "");
   const [contactUrgenceTelephone, setContactUrgenceTelephone] = useState(initial?.contactUrgenceTelephone || "");
@@ -2364,6 +2369,7 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
         emailPerso: emailPerso.trim(),
         telephone: telephone.trim(),
         dateFinContrat: dateFinContrat || null,
+        contactUrgencePrenom: contactUrgencePrenom.trim(),
         contactUrgenceNom: contactUrgenceNom.trim(),
         contactUrgenceLien: contactUrgenceLien.trim(),
         contactUrgenceTelephone: contactUrgenceTelephone.trim(),
@@ -2435,9 +2441,14 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
         Contact d'urgence
       </div>
       <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ flex: 2 }}>
+        <div style={{ flex: 1 }}>
+          <Field label="Prénom">
+            <input style={inputStyle} value={contactUrgencePrenom} onChange={(e) => setContactUrgencePrenom(e.target.value)} placeholder="Marc" />
+          </Field>
+        </div>
+        <div style={{ flex: 1 }}>
           <Field label="Nom">
-            <input style={inputStyle} value={contactUrgenceNom} onChange={(e) => setContactUrgenceNom(e.target.value)} placeholder="Prénom Nom" />
+            <input style={inputStyle} value={contactUrgenceNom} onChange={(e) => setContactUrgenceNom(e.target.value)} placeholder="Robert" />
           </Field>
         </div>
         <div style={{ flex: 1 }}>
