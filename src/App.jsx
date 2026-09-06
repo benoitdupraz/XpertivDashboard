@@ -31,6 +31,7 @@ import {
   Check,
   ShieldCheck,
   ShieldAlert,
+  ClipboardList,
 } from "lucide-react";
 
 /* ---------------------------------- constantes ---------------------------------- */
@@ -75,6 +76,7 @@ const STORAGE_KEYS = {
   employes: "xpertiv:employes",
   postes: "xpertiv:postes",
   voitures: "xpertiv:voitures",
+  historiqueModifications: "xpertiv:historiqueModifications",
 };
 
 /* ---------------------------------- helpers ---------------------------------- */
@@ -185,6 +187,89 @@ function statutDe(employe) {
 
 function nomComplet(employe) {
   return [employe.prenom, employe.nom].filter(Boolean).join(" ") || "—";
+}
+
+function formatDateHeure(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return (
+    d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) +
+    " à " +
+    d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  );
+}
+
+const CHAMPS_MASQUES = ["bitlockerCle"];
+
+const EMPLOYE_CHAMP_LABELS = {
+  prenom: "Prénom",
+  nom: "Nom",
+  matricule: "Matricule",
+  dateDebut: "Début de contrat",
+  dateNaissance: "Date de naissance",
+  emailPro: "Email pro",
+  emailPerso: "Email perso",
+  telephone: "Téléphone",
+  dateFinContrat: "Fin de contrat",
+  profil: "Profil",
+  modules: "Modules",
+  contactUrgenceNom: "Contact d'urgence (nom)",
+  contactUrgenceLien: "Contact d'urgence (lien)",
+  contactUrgenceTelephone: "Contact d'urgence (téléphone)",
+};
+
+const POSTE_CHAMP_LABELS = {
+  marque: "Marque",
+  modele: "Modèle",
+  numeroSerie: "N° de série",
+  nomPC: "Nom du PC",
+  dateAchat: "Date d'achat",
+  dateFinGarantie: "Fin de garantie constructeur",
+  garantieEtendue: "Garantie étendue",
+  dateFinGarantieEtendue: "Fin de garantie étendue",
+  bitlockerCle: "Clé BitLocker",
+};
+
+const VOITURE_CHAMP_LABELS = {
+  marque: "Marque",
+  modele: "Modèle",
+  immatriculation: "Immatriculation",
+  typeContrat: "Type de contrat",
+  dateDebutContrat: "Début de contrat",
+  dateFinContrat: "Fin de contrat",
+  loyerMensuel: "Loyer mensuel",
+  optionAchat: "Option d'achat",
+  prixAchat: "Prix d'achat",
+  kmContractuel: "Kilométrage contractuel",
+  kmReel: "Kilométrage réel",
+};
+
+function valeurAffichable(v) {
+  if (v === null || v === undefined || v === "") return "—";
+  if (Array.isArray(v)) return v.length ? v.join(", ") : "—";
+  if (v === true) return "Oui";
+  if (v === false) return "Non";
+  return String(v);
+}
+
+function diffChamps(avant, apres, labels) {
+  const diffs = [];
+  Object.keys(labels).forEach((key) => {
+    const av = avant ? avant[key] : undefined;
+    const ap = apres[key];
+    const avStr = Array.isArray(av) ? av.join(", ") : String(av ?? "");
+    const apStr = Array.isArray(ap) ? ap.join(", ") : String(ap ?? "");
+    if (avStr !== apStr) {
+      const masque = CHAMPS_MASQUES.includes(key);
+      diffs.push({
+        champ: labels[key],
+        ancienneValeur: masque ? (avStr ? "••••••" : "—") : valeurAffichable(av),
+        nouvelleValeur: masque ? (apStr ? "••••••" : "—") : valeurAffichable(ap),
+      });
+    }
+  });
+  return diffs;
 }
 
 const AVATAR_PALETTE = [
@@ -489,6 +574,10 @@ function GhostButton({ children, onClick, full }) {
         fontWeight: 600,
         cursor: "pointer",
         width: full ? "100%" : "auto",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
         fontFamily: "var(--font-body)",
       }}
     >
@@ -866,14 +955,48 @@ function AssignModal({ title, options, getLabel, getSubLabel, emptyMessage, onAs
   );
 }
 
-function HistoryModal({ title, subtitle, current, historique, onClose }) {
+function CorpsModifications({ entries }) {
+  const tries = [...entries].sort((a, b) => new Date(b.date) - new Date(a.date));
+  if (tries.length === 0) {
+    return <EmptyState icon={<ClipboardList size={20} />} text="Aucune modification enregistrée pour le moment." />;
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 9, maxHeight: 380, overflowY: "auto" }}>
+      {tries.map((m) => (
+        <div key={m.id} style={{ border: "1px solid #E1E5E9", borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#8B96A3", marginBottom: 5 }}>
+            <span>{formatDateHeure(m.date)}</span>
+            <span style={{ fontWeight: 600 }}>{m.responsable}</span>
+          </div>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: "#1B2430", marginBottom: 2 }}>{m.champ}</div>
+          <div style={{ fontSize: 12.5, color: "#5C6B7A" }}>
+            <span style={{ textDecoration: "line-through", color: "#B7BFC7" }}>{m.ancienneValeur}</span>
+            {" → "}
+            <span style={{ color: "#1B2430", fontWeight: 500 }}>{m.nouvelleValeur}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ModificationsHistoryModal({ title, entries, onClose }) {
+  return (
+    <Modal title={title} onClose={onClose} width={560}>
+      <CorpsModifications entries={entries} />
+      <div style={{ marginTop: 16 }}>
+        <GhostButton full onClick={onClose}>Fermer</GhostButton>
+      </div>
+    </Modal>
+  );
+}
+
+function CorpsAttributions({ subtitle, current, historique }) {
   const entries = [...historique].reverse();
   return (
-    <Modal title={title} onClose={onClose} width={480}>
+    <>
       {subtitle && (
-        <div style={{ fontSize: 11.5, color: "#8B96A3", marginBottom: 12, fontFamily: "var(--font-mono)" }}>
-          {subtitle}
-        </div>
+        <div style={{ fontSize: 11.5, color: "#8B96A3", marginBottom: 12, fontFamily: "var(--font-mono)" }}>{subtitle}</div>
       )}
       {current && (
         <div
@@ -898,18 +1021,74 @@ function HistoryModal({ title, subtitle, current, historique, onClose }) {
           Aucune attribution enregistrée.
         </div>
       ) : (
-        entries.map((h, i) => (
-          <div key={i} style={{ display: "flex", gap: 10, padding: "10px 0", borderTop: "1px dashed #E1E5E9" }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#D7DCE1", marginTop: 5, flexShrink: 0 }} />
-            <div>
-              <div style={{ fontWeight: 600, color: "#1B2430", fontSize: 13 }}>{h.employeNom}</div>
-              <div style={{ fontSize: 11.5, color: "#8B96A3", marginTop: 1 }}>
-                {formatDate(h.dateAttribution)} → {formatDate(h.dateDesattribution)}
+        <div style={{ maxHeight: 320, overflowY: "auto" }}>
+          {entries.map((h, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, padding: "10px 0", borderTop: "1px dashed #E1E5E9" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#D7DCE1", marginTop: 5, flexShrink: 0 }} />
+              <div>
+                <div style={{ fontWeight: 600, color: "#1B2430", fontSize: 13 }}>{h.employeNom}</div>
+                <div style={{ fontSize: 11.5, color: "#8B96A3", marginTop: 1 }}>
+                  {formatDate(h.dateAttribution)} → {formatDate(h.dateDesattribution)}
+                </div>
               </div>
             </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
+    </>
+  );
+}
+
+function TabButton({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1,
+        border: "none",
+        background: active ? "#FFFFFF" : "transparent",
+        color: active ? "#1B2430" : "#5C6B7A",
+        fontSize: 12.5,
+        fontWeight: 600,
+        padding: "7px 10px",
+        borderRadius: 6,
+        cursor: "pointer",
+        boxShadow: active ? "0 1px 3px rgba(20,30,40,0.12)" : "none",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function HistoriqueCombineModal({ title, subtitle, current, historiqueAttribution, modifications, onClose }) {
+  const [tab, setTab] = useState("attributions");
+  return (
+    <Modal title={title} onClose={onClose} width={560}>
+      <div
+        style={{
+          display: "flex",
+          gap: 4,
+          background: "#EEF1F4",
+          padding: 4,
+          borderRadius: 9,
+          marginBottom: 16,
+        }}
+      >
+        <TabButton active={tab === "attributions"} onClick={() => setTab("attributions")}>
+          Attributions
+        </TabButton>
+        <TabButton active={tab === "modifications"} onClick={() => setTab("modifications")}>
+          Modifications{modifications.length > 0 ? ` (${modifications.length})` : ""}
+        </TabButton>
+      </div>
+
+      {tab === "attributions" ? (
+        <CorpsAttributions subtitle={subtitle} current={current} historique={historiqueAttribution} />
+      ) : (
+        <CorpsModifications entries={modifications} />
+      )}
+
       <div style={{ marginTop: 16 }}>
         <GhostButton full onClick={onClose}>Fermer</GhostButton>
       </div>
@@ -919,13 +1098,16 @@ function HistoryModal({ title, subtitle, current, historique, onClose }) {
 
 /* ---------------------------------- App racine ---------------------------------- */
 
-export default function App() {
+export default function App({ currentUser } = {}) {
   const [tab, setTab] = useState("salaries");
   const [employes, setEmployes] = useState([]);
   const [postes, setPostes] = useState([]);
   const [voitures, setVoitures] = useState([]);
+  const [historique, setHistorique] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [saveError, setSaveError] = useState(false);
+
+  const nomResponsable = currentUser?.nom || currentUser?.email || "Utilisateur";
 
   useEffect(() => {
     (async () => {
@@ -940,14 +1122,16 @@ export default function App() {
           return usingClaudeStorage ? seed : [];
         }
       };
-      const [e, p, v] = await Promise.all([
+      const [e, p, v, h] = await Promise.all([
         load(STORAGE_KEYS.employes, SEED_EMPLOYES),
         load(STORAGE_KEYS.postes, SEED_POSTES),
         load(STORAGE_KEYS.voitures, SEED_VOITURES),
+        load(STORAGE_KEYS.historiqueModifications, []),
       ]);
       setEmployes(e);
       setPostes(p);
       setVoitures(v);
+      setHistorique(h);
       setLoaded(true);
     })();
   }, []);
@@ -963,6 +1147,25 @@ export default function App() {
     }
   };
 
+  const persistHistorique = (next) => persist(STORAGE_KEYS.historiqueModifications, next, setHistorique);
+
+  const enregistrerModification = (entite, entiteId, entiteLabel, champs) => {
+    if (!champs || champs.length === 0) return;
+    const maintenant = new Date().toISOString();
+    const nouvelles = champs.map((c) => ({
+      id: uid(),
+      date: maintenant,
+      entite,
+      entiteId,
+      entiteLabel,
+      responsable: nomResponsable,
+      champ: c.champ,
+      ancienneValeur: c.ancienneValeur,
+      nouvelleValeur: c.nouvelleValeur,
+    }));
+    persistHistorique([...historique, ...nouvelles]);
+  };
+
   const persistEmployes = (next) => persist(STORAGE_KEYS.employes, next, setEmployes);
   const persistPostes = (next) => persist(STORAGE_KEYS.postes, next, setPostes);
   const persistVoitures = (next) => persist(STORAGE_KEYS.voitures, next, setVoitures);
@@ -972,6 +1175,7 @@ export default function App() {
   const assignPoste = (posteId, employeId, date) => {
     const employe = employes.find((e) => e.id === employeId);
     const nom = employe ? nomComplet(employe) : "Salarié inconnu";
+    const poste = postes.find((p) => p.id === posteId);
     persistPostes(
       postes.map((p) => {
         if (p.id !== posteId) return p;
@@ -980,18 +1184,30 @@ export default function App() {
         return { ...p, etat: "Attribué", assignation: { employeId, employeNom: nom, dateAttribution: date }, historique: hist };
       })
     );
+    if (poste) {
+      enregistrerModification("poste", posteId, `${poste.marque} ${poste.modele}`, [
+        { champ: "Attribution", ancienneValeur: poste.assignation ? poste.assignation.employeNom : "Disponible", nouvelleValeur: nom },
+      ]);
+    }
   };
 
   const returnPoste = (posteId, dateDesattribution = todayISO()) => {
+    const poste = postes.find((p) => p.id === posteId);
     persistPostes(
       postes.map((p) => {
         if (p.id !== posteId || !p.assignation) return p;
         return { ...p, etat: "Disponible", assignation: null, historique: [...p.historique, { ...p.assignation, dateDesattribution }] };
       })
     );
+    if (poste?.assignation) {
+      enregistrerModification("poste", posteId, `${poste.marque} ${poste.modele}`, [
+        { champ: "Attribution", ancienneValeur: poste.assignation.employeNom, nouvelleValeur: "Disponible" },
+      ]);
+    }
   };
 
   const setPosteEtat = (posteId, etat) => {
+    const poste = postes.find((p) => p.id === posteId);
     persistPostes(
       postes.map((p) => {
         if (p.id !== posteId) return p;
@@ -1008,15 +1224,28 @@ export default function App() {
         return next;
       })
     );
+    if (poste && poste.etat !== etat) {
+      enregistrerModification("poste", posteId, `${poste.marque} ${poste.modele}`, [
+        { champ: "État", ancienneValeur: poste.etat, nouvelleValeur: etat },
+      ]);
+    }
   };
 
   const savePoste = (data, id) => {
     if (id) {
-      persistPostes(postes.map((p) => (p.id === id ? { ...p, ...data } : p)));
+      const avant = postes.find((p) => p.id === id);
+      const fusion = { ...avant, ...data };
+      const diffs = diffChamps(avant, fusion, POSTE_CHAMP_LABELS);
+      persistPostes(postes.map((p) => (p.id === id ? fusion : p)));
+      enregistrerModification("poste", id, `${fusion.marque} ${fusion.modele}`, diffs);
     } else {
+      const newId = uid();
       persistPostes([
         ...postes,
-        { id: uid(), ...data, etat: "Disponible", dateRetrait: null, assignation: null, historique: [] },
+        { id: newId, ...data, etat: "Disponible", dateRetrait: null, assignation: null, historique: [] },
+      ]);
+      enregistrerModification("poste", newId, `${data.marque} ${data.modele}`, [
+        { champ: "Création", ancienneValeur: "—", nouvelleValeur: "Poste ajouté au parc" },
       ]);
     }
   };
@@ -1028,6 +1257,7 @@ export default function App() {
   const assignVoiture = (voitureId, employeId, date) => {
     const employe = employes.find((e) => e.id === employeId);
     const nom = employe ? nomComplet(employe) : "Salarié inconnu";
+    const voiture = voitures.find((v) => v.id === voitureId);
     persistVoitures(
       voitures.map((v) => {
         if (v.id !== voitureId) return v;
@@ -1036,18 +1266,30 @@ export default function App() {
         return { ...v, etat: "Attribuée", assignation: { employeId, employeNom: nom, dateAttribution: date }, historique: hist };
       })
     );
+    if (voiture) {
+      enregistrerModification("voiture", voitureId, `${voiture.marque} ${voiture.modele}`, [
+        { champ: "Attribution", ancienneValeur: voiture.assignation ? voiture.assignation.employeNom : "Disponible", nouvelleValeur: nom },
+      ]);
+    }
   };
 
   const returnVoiture = (voitureId, dateDesattribution = todayISO()) => {
+    const voiture = voitures.find((v) => v.id === voitureId);
     persistVoitures(
       voitures.map((v) => {
         if (v.id !== voitureId || !v.assignation) return v;
         return { ...v, etat: "Disponible", assignation: null, historique: [...v.historique, { ...v.assignation, dateDesattribution }] };
       })
     );
+    if (voiture?.assignation) {
+      enregistrerModification("voiture", voitureId, `${voiture.marque} ${voiture.modele}`, [
+        { champ: "Attribution", ancienneValeur: voiture.assignation.employeNom, nouvelleValeur: "Disponible" },
+      ]);
+    }
   };
 
   const setVoitureEtat = (voitureId, etat) => {
+    const voiture = voitures.find((v) => v.id === voitureId);
     persistVoitures(
       voitures.map((v) => {
         if (v.id !== voitureId) return v;
@@ -1064,15 +1306,28 @@ export default function App() {
         return next;
       })
     );
+    if (voiture && voiture.etat !== etat) {
+      enregistrerModification("voiture", voitureId, `${voiture.marque} ${voiture.modele}`, [
+        { champ: "État", ancienneValeur: voiture.etat, nouvelleValeur: etat },
+      ]);
+    }
   };
 
   const saveVoiture = (data, id) => {
     if (id) {
-      persistVoitures(voitures.map((v) => (v.id === id ? { ...v, ...data } : v)));
+      const avant = voitures.find((v) => v.id === id);
+      const fusion = { ...avant, ...data };
+      const diffs = diffChamps(avant, fusion, VOITURE_CHAMP_LABELS);
+      persistVoitures(voitures.map((v) => (v.id === id ? fusion : v)));
+      enregistrerModification("voiture", id, `${fusion.marque} ${fusion.modele}`, diffs);
     } else {
+      const newId = uid();
       persistVoitures([
         ...voitures,
-        { id: uid(), ...data, etat: "Disponible", dateRetrait: null, assignation: null, historique: [] },
+        { id: newId, ...data, etat: "Disponible", dateRetrait: null, assignation: null, historique: [] },
+      ]);
+      enregistrerModification("voiture", newId, `${data.marque} ${data.modele}`, [
+        { champ: "Création", ancienneValeur: "—", nouvelleValeur: "Véhicule ajouté à la flotte" },
       ]);
     }
   };
@@ -1083,22 +1338,42 @@ export default function App() {
 
   const saveEmploye = (data, id) => {
     if (id) {
-      persistEmployes(employes.map((e) => (e.id === id ? { ...e, ...data } : e)));
+      const avant = employes.find((e) => e.id === id);
+      const fusion = { ...avant, ...data };
+      const diffs = diffChamps(avant, fusion, EMPLOYE_CHAMP_LABELS);
+      persistEmployes(employes.map((e) => (e.id === id ? fusion : e)));
+      enregistrerModification("salarie", id, nomComplet(fusion), diffs);
     } else {
-      persistEmployes([...employes, { id: uid(), ...data }]);
+      const newId = uid();
+      persistEmployes([...employes, { id: newId, ...data }]);
+      enregistrerModification("salarie", newId, nomComplet(data), [
+        { champ: "Création", ancienneValeur: "—", nouvelleValeur: "Dossier créé" },
+      ]);
     }
   };
 
   const terminerContrat = (id, dateFinContrat = todayISO()) => {
+    const employe = employes.find((e) => e.id === id);
     const posteAssigne = postes.find((p) => p.assignation?.employeId === id);
     const voitureAssignee = voitures.find((v) => v.assignation?.employeId === id);
     if (posteAssigne) returnPoste(posteAssigne.id, dateFinContrat);
     if (voitureAssignee) returnVoiture(voitureAssignee.id, dateFinContrat);
     persistEmployes(employes.map((e) => (e.id === id ? { ...e, dateFinContrat } : e)));
+    if (employe) {
+      enregistrerModification("salarie", id, nomComplet(employe), [
+        { champ: "Statut", ancienneValeur: "Actif", nouvelleValeur: `Inactif (fin de contrat le ${formatDate(dateFinContrat)})` },
+      ]);
+    }
   };
 
   const reactiverContrat = (id) => {
+    const employe = employes.find((e) => e.id === id);
     persistEmployes(employes.map((e) => (e.id === id ? { ...e, dateFinContrat: null } : e)));
+    if (employe) {
+      enregistrerModification("salarie", id, nomComplet(employe), [
+        { champ: "Statut", ancienneValeur: "Inactif", nouvelleValeur: "Actif" },
+      ]);
+    }
   };
 
   const deleteEmploye = (id) => {
@@ -1146,6 +1421,7 @@ export default function App() {
           employes={employes}
           postes={postes}
           voitures={voitures}
+          historique={historique}
           saveEmploye={saveEmploye}
           deleteEmploye={deleteEmploye}
           terminerContrat={terminerContrat}
@@ -1161,6 +1437,7 @@ export default function App() {
         <PostesView
           postes={postes}
           employes={employes}
+          historique={historique}
           savePoste={savePoste}
           deletePoste={deletePoste}
           assignPoste={assignPoste}
@@ -1173,6 +1450,7 @@ export default function App() {
         <VoituresView
           voitures={voitures}
           employes={employes}
+          historique={historique}
           saveVoiture={saveVoiture}
           deleteVoiture={deleteVoiture}
           assignVoiture={assignVoiture}
@@ -1460,6 +1738,7 @@ function SalariesView({
   employes,
   postes,
   voitures,
+  historique,
   saveEmploye,
   deleteEmploye,
   terminerContrat,
@@ -1654,6 +1933,7 @@ function SalariesView({
           voiture={voitureOf(ficheFor.id)}
           postesDisponibles={postes.filter((p) => p.etat === "Disponible")}
           voituresDisponibles={voitures.filter((v) => v.etat === "Disponible")}
+          modifications={historique.filter((h) => h.entite === "salarie" && h.entiteId === ficheFor.id)}
           assignPoste={assignPoste}
           returnPoste={returnPoste}
           assignVoiture={assignVoiture}
@@ -1674,7 +1954,11 @@ function SalariesView({
             setShowForm(false);
             setEditing(null);
           }}
-          onSave={saveEmploye}
+          onSave={(data, id) => {
+            saveEmploye(data, id);
+            setShowForm(false);
+            setEditing(null);
+          }}
         />
       )}
 
@@ -1771,6 +2055,7 @@ function FicheSalarieModal({
   voiture,
   postesDisponibles,
   voituresDisponibles,
+  modifications,
   assignPoste,
   returnPoste,
   assignVoiture,
@@ -1782,6 +2067,7 @@ function FicheSalarieModal({
   const [showAssignVoiture, setShowAssignVoiture] = useState(false);
   const [confirmReturnPoste, setConfirmReturnPoste] = useState(false);
   const [confirmReturnVoiture, setConfirmReturnVoiture] = useState(false);
+  const [showModifications, setShowModifications] = useState(false);
 
   const avatar = avatarStyle(nomComplet(employe));
   const age = calculerAge(employe.dateNaissance);
@@ -1960,11 +2246,24 @@ function FicheSalarieModal({
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+        <GhostButton full onClick={() => setShowModifications(true)}>
+          <ClipboardList size={14} /> Historique des modifications
+        </GhostButton>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <GhostButton full onClick={onClose}>Fermer</GhostButton>
         <PrimaryButton full onClick={onEdit}>
           <Pencil size={14} /> Modifier la fiche
         </PrimaryButton>
       </div>
+
+      {showModifications && (
+        <ModificationsHistoryModal
+          title={`Modifications — ${nomComplet(employe)}`}
+          entries={modifications}
+          onClose={() => setShowModifications(false)}
+        />
+      )}
 
       {showAssignPoste && (
         <AssignModal
@@ -2201,7 +2500,7 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
 
 /* ---------------------------------- Vue Postes (PC) ---------------------------------- */
 
-function PostesView({ postes, employes, savePoste, deletePoste, assignPoste, returnPoste, setPosteEtat }) {
+function PostesView({ postes, employes, historique, savePoste, deletePoste, assignPoste, returnPoste, setPosteEtat }) {
   const [search, setSearch] = useState("");
   const [filterEtat, setFilterEtat] = useState("Tous");
   const [showForm, setShowForm] = useState(false);
@@ -2403,11 +2702,12 @@ function PostesView({ postes, employes, savePoste, deletePoste, assignPoste, ret
       )}
 
       {historyFor && (
-        <HistoryModal
+        <HistoriqueCombineModal
           title={`Historique — ${historyFor.marque} ${historyFor.modele}`}
           subtitle={`${historyFor.numeroSerie}${historyFor.nomPC ? " · " + historyFor.nomPC : ""}`}
           current={historyFor.assignation}
-          historique={historyFor.historique}
+          historiqueAttribution={historyFor.historique}
+          modifications={historique.filter((h) => h.entite === "poste" && h.entiteId === historyFor.id)}
           onClose={() => setHistoryFor(null)}
         />
       )}
@@ -2609,7 +2909,7 @@ function PosteFormModal({ initial, onClose, onSave }) {
 
 /* ---------------------------------- Vue Véhicules ---------------------------------- */
 
-function VoituresView({ voitures, employes, saveVoiture, deleteVoiture, assignVoiture, returnVoiture, setVoitureEtat }) {
+function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoiture, assignVoiture, returnVoiture, setVoitureEtat }) {
   const [search, setSearch] = useState("");
   const [filterEtat, setFilterEtat] = useState("Tous");
   const [showForm, setShowForm] = useState(false);
@@ -2794,11 +3094,12 @@ function VoituresView({ voitures, employes, saveVoiture, deleteVoiture, assignVo
       )}
 
       {historyFor && (
-        <HistoryModal
+        <HistoriqueCombineModal
           title={`Historique — ${historyFor.marque} ${historyFor.modele}`}
           subtitle={historyFor.immatriculation}
           current={historyFor.assignation}
-          historique={historyFor.historique}
+          historiqueAttribution={historyFor.historique}
+          modifications={historique.filter((h) => h.entite === "voiture" && h.entiteId === historyFor.id)}
           onClose={() => setHistoryFor(null)}
         />
       )}

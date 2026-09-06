@@ -140,7 +140,7 @@ export default function AuthGate() {
   return (
     <div>
       <TopBar profile={profile} view={view} setView={setView} onLogout={() => supabase.auth.signOut()} />
-      {view === "admin" && profile.role === "admin" ? <AdminUsers /> : <App />}
+      {view === "admin" && profile.role === "admin" ? <AdminUsers /> : <App currentUser={profile} />}
     </div>
   );
 }
