@@ -283,14 +283,12 @@ function finDeJournee(dateISO) {
   return dateISO + "T23:59:59.999";
 }
 
-function etatVoitureADate(voiture, historiqueGlobal, dateLimite) {
-  const limite = finDeJournee(dateLimite);
-
-  const creation = historiqueGlobal.find(
-    (h) => h.entite === "voiture" && h.entiteId === voiture.id && h.champ === "Création"
-  );
-  if (creation && creation.date > limite) {
-    return null; // le véhicule n'existait pas encore à cette date
+function etatVoitureADate(voiture, dateLimite) {
+  // Existence : basée sur la vraie date de début de contrat du véhicule,
+  // pas sur la date à laquelle sa fiche a été saisie dans l'app (qui peut
+  // être bien plus tardive en cas de saisie rétroactive de données).
+  if (voiture.dateDebutContrat && voiture.dateDebutContrat > dateLimite) {
+    return null; // le véhicule n'était pas encore en service à cette date
   }
 
   // L'attribution en cours couvrait-elle déjà cette date ?
@@ -2997,7 +2995,7 @@ function EtatDesLieuxModal({ voitures, historique, onClose }) {
   const lignes = useMemo(() => {
     return voitures
       .map((v) => {
-        const etatInfo = etatVoitureADate(v, historique, date);
+        const etatInfo = etatVoitureADate(v, date);
         if (!etatInfo) return null; // n'existait pas encore à cette date
         const kmInfo = kmReelADate(v, historique, date);
         return { voiture: v, ...etatInfo, km: kmInfo.valeur, kmApprox: kmInfo.approx };
