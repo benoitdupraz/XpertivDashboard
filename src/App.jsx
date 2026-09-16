@@ -32,6 +32,8 @@ import {
   ShieldCheck,
   ShieldAlert,
   ClipboardList,
+  Calendar,
+  Printer,
 } from "lucide-react";
 
 /* ---------------------------------- constantes ---------------------------------- */
@@ -272,6 +274,76 @@ function diffChamps(avant, apres, labels) {
   });
   return diffs;
 }
+
+/* ---- Reconstitution de l'état d'un véhicule à une date donnée, à partir
+   de l'historique des modifications (attribution, état, kilométrage). ---- */
+
+function finDeJournee(dateISO) {
+  return dateISO + "T23:59:59.999";
+}
+
+function etatVoitureADate(voiture, historiqueGlobal, dateLimite) {
+  const limite = finDeJournee(dateLimite);
+
+  const creation = historiqueGlobal.find(
+    (h) => h.entite === "voiture" && h.entiteId === voiture.id && h.champ === "Création"
+  );
+  if (creation && creation.date > limite) {
+    return null; // le véhicule n'existait pas encore à cette date
+  }
+
+  const entries = historiqueGlobal
+    .filter(
+      (h) =>
+        h.entite === "voiture" &&
+        h.entiteId === voiture.id &&
+        (h.champ === "État" || h.champ === "Attribution") &&
+        h.date <= limite
+    )
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (entries.length === 0) {
+    // Aucune trace avant cette date (véhicule antérieur à la mise en place du
+    // suivi) : on retombe sur l'état actuel, par approximation.
+    return {
+      etat: voiture.etat,
+      assigneA: voiture.assignation ? voiture.assignation.employeNom : null,
+      approx: true,
+    };
+  }
+
+  let etat = "Disponible";
+  let assigneA = null;
+  entries.forEach((e) => {
+    if (e.champ === "État") {
+      etat = e.nouvelleValeur;
+      if (etat !== "Attribuée") assigneA = null;
+    } else if (e.champ === "Attribution") {
+      if (e.nouvelleValeur === "Disponible") {
+        etat = "Disponible";
+        assigneA = null;
+      } else {
+        etat = "Attribuée";
+        assigneA = e.nouvelleValeur;
+      }
+    }
+  });
+
+  return { etat, assigneA, approx: false };
+}
+
+function kmReelADate(voiture, historiqueGlobal, dateLimite) {
+  const limite = finDeJournee(dateLimite);
+  const entries = historiqueGlobal
+    .filter(
+      (h) => h.entite === "voiture" && h.entiteId === voiture.id && h.champ === "Kilométrage réel" && h.date <= limite
+    )
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  if (entries.length === 0) return { valeur: voiture.kmReel, approx: true };
+  const n = parseInt(entries[0].nouvelleValeur, 10);
+  return { valeur: isNaN(n) ? voiture.kmReel : n, approx: false };
+}
+
 
 const AVATAR_PALETTE = [
   { bg: "#E7EEF4", fg: "#33587A" },
@@ -2920,6 +2992,99 @@ function PosteFormModal({ initial, onClose, onSave }) {
 
 /* ---------------------------------- Vue Véhicules ---------------------------------- */
 
+function EtatDesLieuxModal({ voitures, historique, onClose }) {
+  const [date, setDate] = useState(todayISO());
+
+  const lignes = useMemo(() => {
+    return voitures
+      .map((v) => {
+        const etatInfo = etatVoitureADate(v, historique, date);
+        if (!etatInfo) return null; // n'existait pas encore à cette date
+        const kmInfo = kmReelADate(v, historique, date);
+        return { voiture: v, ...etatInfo, km: kmInfo.valeur, kmApprox: kmInfo.approx };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a.voiture.marque + a.voiture.modele).localeCompare(b.voiture.marque + b.voiture.modele));
+  }, [voitures, historique, date]);
+
+  const approxPresent = lignes.some((l) => l.approx || l.kmApprox);
+
+  return (
+    <Modal title="État des lieux de la flotte" onClose={onClose} width={640}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginBottom: 16 }}>
+        <div style={{ flex: 1 }}>
+          <Field label="À la date du">
+            <input type="date" style={inputStyle} value={date} onChange={(e) => setDate(e.target.value)} max={todayISO()} />
+          </Field>
+        </div>
+        <GhostButton onClick={() => window.print()}>
+          <Printer size={14} /> Imprimer
+        </GhostButton>
+      </div>
+
+      {lignes.length === 0 ? (
+        <EmptyState icon={<Calendar size={20} />} text="Aucun véhicule n'existait encore à cette date." />
+      ) : (
+        <div style={{ border: "1px solid #E1E5E9", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+              <thead>
+                <tr style={{ background: "#F6F7F8", textAlign: "left" }}>
+                  {["Véhicule", "État", "Attribué à", "Kilométrage"].map((h, i) => (
+                    <th
+                      key={i}
+                      style={{
+                        padding: "8px 12px",
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        color: "#5C6B7A",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                        borderBottom: "1px solid #E1E5E9",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {lignes.map((l) => (
+                  <tr key={l.voiture.id} style={{ borderBottom: "1px solid #F0F2F4" }}>
+                    <td style={{ padding: "9px 12px" }}>
+                      <div style={{ fontWeight: 600, color: "#1B2430" }}>{l.voiture.marque} {l.voiture.modele}</div>
+                      <div style={{ fontSize: 11, color: "#8B96A3", fontFamily: "var(--font-mono)" }}>{l.voiture.immatriculation}</div>
+                    </td>
+                    <td style={{ padding: "9px 12px" }}>
+                      <Pill label={l.etat} styleMap={VOITURE_ETAT_STYLES} />
+                    </td>
+                    <td style={{ padding: "9px 12px", color: "#1B2430" }}>{l.assigneA || <span style={{ color: "#B7BFC7" }}>—</span>}</td>
+                    <td style={{ padding: "9px 12px", color: "#1B2430" }}>
+                      {l.km != null ? `${l.km.toLocaleString("fr-FR")} km` : "—"}
+                      {l.kmApprox && <span style={{ color: "#C67C2E" }}> *</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {approxPresent && (
+        <div style={{ fontSize: 11, color: "#8B96A3", marginTop: 10 }}>
+          * Aucune trace antérieure à cette date dans l'historique des modifications — valeur actuelle affichée par
+          approximation.
+        </div>
+      )}
+
+      <div style={{ marginTop: 16 }}>
+        <GhostButton full onClick={onClose}>Fermer</GhostButton>
+      </div>
+    </Modal>
+  );
+}
+
 function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoiture, assignVoiture, returnVoiture, setVoitureEtat }) {
   const [search, setSearch] = useState("");
   const [filterEtat, setFilterEtat] = useState("Tous");
@@ -2929,6 +3094,7 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
   const [historyFor, setHistoryFor] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [updatingKm, setUpdatingKm] = useState(null);
+  const [showEtatDesLieux, setShowEtatDesLieux] = useState(false);
 
   const stats = useMemo(() => {
     return {
@@ -2979,6 +3145,9 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
           ))}
         </select>
         <div style={{ flex: 1 }} />
+        <GhostButton onClick={() => setShowEtatDesLieux(true)}>
+          <Calendar size={15} /> État des lieux
+        </GhostButton>
         <PrimaryButton onClick={() => setShowForm(true)}>
           <Plus size={15} /> Nouveau véhicule
         </PrimaryButton>
@@ -3124,6 +3293,10 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
             setUpdatingKm(null);
           }}
         />
+      )}
+
+      {showEtatDesLieux && (
+        <EtatDesLieuxModal voitures={voitures} historique={historique} onClose={() => setShowEtatDesLieux(false)} />
       )}
 
       {confirmDelete && (
