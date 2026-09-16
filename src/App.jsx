@@ -9,6 +9,7 @@ import {
   X,
   UserPlus,
   Pencil,
+  Undo2,
   Trash2,
   History,
   Archive,
@@ -292,44 +293,25 @@ function etatVoitureADate(voiture, historiqueGlobal, dateLimite) {
     return null; // le véhicule n'existait pas encore à cette date
   }
 
-  const entries = historiqueGlobal
-    .filter(
-      (h) =>
-        h.entite === "voiture" &&
-        h.entiteId === voiture.id &&
-        (h.champ === "État" || h.champ === "Attribution") &&
-        h.date <= limite
-    )
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  if (entries.length === 0) {
-    // Aucune trace avant cette date (véhicule antérieur à la mise en place du
-    // suivi) : on retombe sur l'état actuel, par approximation.
-    return {
-      etat: voiture.etat,
-      assigneA: voiture.assignation ? voiture.assignation.employeNom : null,
-      approx: true,
-    };
+  // L'attribution en cours couvrait-elle déjà cette date ?
+  if (voiture.assignation && voiture.assignation.dateAttribution <= dateLimite) {
+    return { etat: "Attribuée", assigneA: voiture.assignation.employeNom, approx: false };
   }
 
-  let etat = "Disponible";
-  let assigneA = null;
-  entries.forEach((e) => {
-    if (e.champ === "État") {
-      etat = e.nouvelleValeur;
-      if (etat !== "Attribuée") assigneA = null;
-    } else if (e.champ === "Attribution") {
-      if (e.nouvelleValeur === "Disponible") {
-        etat = "Disponible";
-        assigneA = null;
-      } else {
-        etat = "Attribuée";
-        assigneA = e.nouvelleValeur;
-      }
-    }
-  });
+  // Un intervalle d'attribution passé couvrait-il cette date ?
+  const intervalle = (voiture.historique || []).find(
+    (h) => h.dateAttribution <= dateLimite && (!h.dateDesattribution || dateLimite <= h.dateDesattribution)
+  );
+  if (intervalle) {
+    return { etat: "Attribuée", assigneA: intervalle.employeNom, approx: false };
+  }
 
-  return { etat, assigneA, approx: false };
+  // Le véhicule est-il actuellement retiré, et l'était-il déjà à cette date ?
+  if (voiture.etat === "Retirée" && voiture.dateRetrait && dateLimite >= voiture.dateRetrait) {
+    return { etat: "Retirée", assigneA: null, approx: false };
+  }
+
+  return { etat: "Disponible", assigneA: null, approx: false };
 }
 
 function kmReelADate(voiture, historiqueGlobal, dateLimite) {
@@ -2592,6 +2574,7 @@ function PostesView({ postes, employes, historique, savePoste, deletePoste, assi
   const [historyFor, setHistoryFor] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [bitlockerFor, setBitlockerFor] = useState(null);
+  const [confirmReturn, setConfirmReturn] = useState(null);
 
   const stats = useMemo(() => {
     return {
@@ -2734,6 +2717,9 @@ function PostesView({ postes, employes, historique, savePoste, deletePoste, assi
                           {p.etat !== "Attribué" && p.etat !== "Retiré" && (
                             <SmallActionButton icon={<UserPlus size={15} />} label="Attribuer" onClick={() => setAssigning(p)} />
                           )}
+                          {p.etat === "Attribué" && (
+                            <SmallActionButton icon={<Undo2 size={15} />} label="Désattribuer" onClick={() => setConfirmReturn(p)} />
+                          )}
                           {p.etat !== "Retiré" && (
                             <SmallActionButton icon={<Archive size={15} />} label="Retirer du parc" onClick={() => setPosteEtat(p.id, "Retiré")} />
                           )}
@@ -2796,6 +2782,19 @@ function PostesView({ postes, employes, historique, savePoste, deletePoste, assi
       )}
 
       {bitlockerFor && <BitlockerModal poste={bitlockerFor} onClose={() => setBitlockerFor(null)} />}
+
+      {confirmReturn && (
+        <ConfirmModal
+          title="Désattribuer ce poste"
+          message={`${confirmReturn.assignation?.employeNom} rend ${confirmReturn.marque} ${confirmReturn.modele}. Le poste repassera au statut « Disponible ».`}
+          confirmLabel="Confirmer"
+          onConfirm={() => {
+            returnPoste(confirmReturn.id);
+            setConfirmReturn(null);
+          }}
+          onClose={() => setConfirmReturn(null)}
+        />
+      )}
 
       {confirmDelete && (
         <ConfirmModal
@@ -3007,7 +3006,7 @@ function EtatDesLieuxModal({ voitures, historique, onClose }) {
       .sort((a, b) => (a.voiture.marque + a.voiture.modele).localeCompare(b.voiture.marque + b.voiture.modele));
   }, [voitures, historique, date]);
 
-  const approxPresent = lignes.some((l) => l.approx || l.kmApprox);
+  const approxPresent = lignes.some((l) => l.kmApprox);
 
   return (
     <Modal title="État des lieux de la flotte" onClose={onClose} width={640}>
@@ -3073,8 +3072,9 @@ function EtatDesLieuxModal({ voitures, historique, onClose }) {
 
       {approxPresent && (
         <div style={{ fontSize: 11, color: "#8B96A3", marginTop: 10 }}>
-          * Aucune trace antérieure à cette date dans l'historique des modifications — valeur actuelle affichée par
-          approximation.
+          * Kilométrage : aucun relevé antérieur à cette date dans l'historique des modifications — valeur actuelle
+          affichée par approximation. L'état et l'attribution, eux, sont reconstitués avec précision à partir des
+          intervalles d'attribution enregistrés.
         </div>
       )}
 
@@ -3095,6 +3095,7 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [updatingKm, setUpdatingKm] = useState(null);
   const [showEtatDesLieux, setShowEtatDesLieux] = useState(false);
+  const [confirmReturn, setConfirmReturn] = useState(null);
 
   const stats = useMemo(() => {
     return {
@@ -3223,6 +3224,9 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
                           {v.etat !== "Attribuée" && v.etat !== "Retirée" && (
                             <SmallActionButton icon={<UserPlus size={15} />} label="Attribuer" onClick={() => setAssigning(v)} />
                           )}
+                          {v.etat === "Attribuée" && (
+                            <SmallActionButton icon={<Undo2 size={15} />} label="Désattribuer" onClick={() => setConfirmReturn(v)} />
+                          )}
                           {v.etat !== "Retirée" && (
                             <SmallActionButton icon={<Archive size={15} />} label="Retirer de la flotte" onClick={() => setVoitureEtat(v.id, "Retirée")} />
                           )}
@@ -3297,6 +3301,19 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
 
       {showEtatDesLieux && (
         <EtatDesLieuxModal voitures={voitures} historique={historique} onClose={() => setShowEtatDesLieux(false)} />
+      )}
+
+      {confirmReturn && (
+        <ConfirmModal
+          title="Désattribuer ce véhicule"
+          message={`${confirmReturn.assignation?.employeNom} rend ${confirmReturn.marque} ${confirmReturn.modele}. Le véhicule repassera au statut « Disponible ».`}
+          confirmLabel="Confirmer"
+          onConfirm={() => {
+            returnVoiture(confirmReturn.id);
+            setConfirmReturn(null);
+          }}
+          onClose={() => setConfirmReturn(null)}
+        />
       )}
 
       {confirmDelete && (
