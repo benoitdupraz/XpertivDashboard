@@ -772,10 +772,7 @@ function kmTheoriqueADate(dateDebutContrat, dateFinContrat, kmContractuel, dateR
   return kmContractuel * (ecoule / total);
 }
 
-function KmGauge({ kmReel, kmContractuel, dateDebutContrat, dateFinContrat, width = 150 }) {
-  if (!kmContractuel) {
-    return <span style={{ fontSize: 12, color: "#B7BFC7" }}>Non renseigné</span>;
-  }
+function calculKmGauge(kmReel, kmContractuel, dateDebutContrat, dateFinContrat) {
   const reel = kmReel || 0;
   const barWidth = Math.min(Math.round((reel / kmContractuel) * 100), 100);
   const kmTheorique = kmTheoriqueADate(dateDebutContrat, dateFinContrat, kmContractuel);
@@ -795,16 +792,20 @@ function KmGauge({ kmReel, kmContractuel, dateDebutContrat, dateFinContrat, widt
     } else {
       color = "#1D6E64"; // vert : marge confortable sous le rythme théorique (< -10%)
     }
-    const arrondi = Math.round(deviation);
-    statusText = `${arrondi >= 0 ? "+" : ""}${arrondi}% vs rythme prévu (${Math.round(kmTheorique).toLocaleString("fr-FR")} km à date)`;
+    const pctRatio = Math.round((reel / kmTheorique) * 100);
+    statusText = `${pctRatio}% · ${Math.round(kmTheorique).toLocaleString("fr-FR")} km théoriques`;
   }
 
+  return { barWidth, color, statusText, kmTheorique };
+}
+
+function KmGaugeBar({ kmReel, kmContractuel, dateDebutContrat, dateFinContrat, width = 150 }) {
+  if (!kmContractuel) {
+    return <span style={{ fontSize: 12, color: "#B7BFC7" }}>Non renseigné</span>;
+  }
+  const { barWidth, color, statusText, kmTheorique } = calculKmGauge(kmReel, kmContractuel, dateDebutContrat, dateFinContrat);
   return (
     <div style={{ minWidth: width }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5C6B7A", marginBottom: 3 }}>
-        <span>{reel.toLocaleString("fr-FR")} km</span>
-        <span>{kmContractuel.toLocaleString("fr-FR")} km</span>
-      </div>
       <div style={{ height: 6, borderRadius: 999, background: "#EDEFF1", overflow: "hidden", position: "relative" }}>
         <div style={{ height: "100%", width: `${barWidth}%`, background: color, borderRadius: 999 }} />
         {kmTheorique !== null && (
@@ -822,6 +823,22 @@ function KmGauge({ kmReel, kmContractuel, dateDebutContrat, dateFinContrat, widt
         )}
       </div>
       <div style={{ fontSize: 10.5, color, marginTop: 3, fontWeight: 700 }}>{statusText}</div>
+    </div>
+  );
+}
+
+function KmGauge({ kmReel, kmContractuel, dateDebutContrat, dateFinContrat, width = 150 }) {
+  if (!kmContractuel) {
+    return <span style={{ fontSize: 12, color: "#B7BFC7" }}>Non renseigné</span>;
+  }
+  const reel = kmReel || 0;
+  return (
+    <div style={{ minWidth: width }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5C6B7A", marginBottom: 3 }}>
+        <span>{reel.toLocaleString("fr-FR")} km</span>
+        <span>{kmContractuel.toLocaleString("fr-FR")} km</span>
+      </div>
+      <KmGaugeBar kmReel={kmReel} kmContractuel={kmContractuel} dateDebutContrat={dateDebutContrat} dateFinContrat={dateFinContrat} width={width} />
     </div>
   );
 }
@@ -3344,54 +3361,56 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
                   const propriete = proprieteVoiture(v);
                   return (
                     <tr key={v.id} style={{ borderBottom: "1px solid #F0F2F4" }}>
-                      <td style={{ padding: "12px 14px" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "bottom" }}>
                         <div style={{ fontWeight: 600, color: "#1B2430" }}>{v.marque} {v.modele}</div>
                         {v.etat === "Retirée" && v.dateRetrait && (
                           <div style={{ fontSize: 11.5, color: "#8A3A32" }}>Retirée le {formatDate(v.dateRetrait)}</div>
                         )}
                       </td>
-                      <td style={{ padding: "12px 14px", fontFamily: "var(--font-mono)", fontSize: 12.5, color: "#3A4453" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "bottom", fontFamily: "var(--font-mono)", fontSize: 12.5, color: "#3A4453" }}>
                         {v.immatriculation}
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
-                        {v.typeContrat && <Badge label={v.typeContrat} styleMap={CONTRAT_TYPE_STYLES} />}
-                        <div style={{ fontSize: 11, color: "#8B96A3", marginTop: 4 }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "bottom" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          {v.typeContrat && <Badge label={v.typeContrat} styleMap={CONTRAT_TYPE_STYLES} />}
+                          {resumeFinancierVoiture(v) && (
+                            <span style={{ fontSize: 11.5, color: "#5C6B7A", fontWeight: 600 }}>{resumeFinancierVoiture(v)}</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#8B96A3", marginTop: 4, marginBottom: 6 }}>
                           {formatDate(v.dateDebutContrat)} → {formatDate(v.dateFinContrat)}
                         </div>
-                        {resumeFinancierVoiture(v) && (
-                          <div style={{ fontSize: 11, color: "#5C6B7A", marginTop: 2, fontWeight: 600 }}>{resumeFinancierVoiture(v)}</div>
-                        )}
                         {propriete.estProprietaire && (
-                          <div style={{ fontSize: 10.5, color: "#1D6E64", marginTop: 3, fontWeight: 600 }}>{propriete.label}</div>
+                          <div style={{ fontSize: 10.5, color: "#1D6E64", marginBottom: 6, fontWeight: 600 }}>{propriete.label}</div>
                         )}
                         {!jaugeContratMasquee(v) && (
-                          <div style={{ marginTop: 6 }}>
-                            <ContratGauge dateDebut={v.dateDebutContrat} dateFin={v.dateFinContrat} width={160} compact />
-                          </div>
+                          <ContratGauge dateDebut={v.dateDebutContrat} dateFin={v.dateFinContrat} width={160} compact />
                         )}
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
-                        <KmGauge
+                      <td style={{ padding: "12px 14px", verticalAlign: "bottom" }}>
+                        <div style={{ fontSize: 11, color: "#5C6B7A", marginBottom: 6 }}>{(v.kmReel || 0).toLocaleString("fr-FR")} km</div>
+                        <KmGaugeBar
                           kmReel={v.kmReel}
                           kmContractuel={v.kmContractuel}
                           dateDebutContrat={v.dateDebutContrat}
                           dateFinContrat={v.dateFinContrat}
+                          width={150}
                         />
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "bottom" }}>
                         <Pill label={v.etat} styleMap={VOITURE_ETAT_STYLES} />
                       </td>
-                      <td style={{ padding: "12px 14px" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "bottom" }}>
                         {v.assignation ? (
                           <div style={{ color: "#1B2430", fontWeight: 500 }}>{v.assignation.employeNom}</div>
                         ) : (
                           <span style={{ color: "#B7BFC7" }}>—</span>
                         )}
                       </td>
-                      <td style={{ padding: "12px 14px", color: "#5C6B7A", fontSize: 12.5 }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "bottom", color: "#5C6B7A", fontSize: 12.5 }}>
                         {v.assignation ? formatDate(v.assignation.dateAttribution) : "—"}
                       </td>
-                      <td style={{ padding: "10px 10px" }}>
+                      <td style={{ padding: "10px 10px", verticalAlign: "bottom" }}>
                         <div style={{ display: "flex", gap: 2, justifyContent: "flex-end", flexWrap: "wrap" }}>
                           {v.etat !== "Attribuée" && v.etat !== "Retirée" && (
                             <SmallActionButton icon={<UserPlus size={15} />} label="Attribuer" onClick={() => setAssigning(v)} />
