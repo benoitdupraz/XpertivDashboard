@@ -767,7 +767,7 @@ function KmGauge({ kmReel, kmContractuel, width = 150 }) {
   );
 }
 
-function ContratGauge({ dateDebut, dateFin, width = 150 }) {
+function ContratGauge({ dateDebut, dateFin, width = 150, compact = false }) {
   if (!dateDebut || !dateFin) {
     return <span style={{ fontSize: 12, color: "#B7BFC7" }}>Non renseigné</span>;
   }
@@ -795,15 +795,17 @@ function ContratGauge({ dateDebut, dateFin, width = 150 }) {
   }
   return (
     <div style={{ minWidth: width }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5C6B7A", marginBottom: 3 }}>
-        <span>{formatDateCourt(dateDebut)}</span>
-        <span>{formatDateCourt(dateFin)}</span>
-      </div>
+      {!compact && (
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5C6B7A", marginBottom: 3 }}>
+          <span>{formatDateCourt(dateDebut)}</span>
+          <span>{formatDateCourt(dateFin)}</span>
+        </div>
+      )}
       <div style={{ height: 6, borderRadius: 999, background: "#EDEFF1", overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${barWidth}%`, background: color, borderRadius: 999 }} />
       </div>
       <div style={{ fontSize: 10.5, color, marginTop: 3, fontWeight: 600 }}>
-        {label} · {pct}% écoulé · {joursRestants} j restants
+        {compact ? `${pct}% écoulé · ${joursRestants} j restants` : `${label} · ${pct}% écoulé · ${joursRestants} j restants`}
       </div>
     </div>
   );
@@ -2358,10 +2360,8 @@ function FicheSalarieModal({
               <div style={{ fontSize: 11, color: "#8B96A3", marginTop: 5, lineHeight: 1.6 }}>
                 <div>Contrat {voiture.typeContrat} : {formatDate(voiture.dateDebutContrat)} → {formatDate(voiture.dateFinContrat)}</div>
                 {resumeFinancierVoiture(voiture) && <div>{resumeFinancierVoiture(voiture)}</div>}
-                {proprieteVoiture(voiture).label && (
-                  <div style={{ color: proprieteVoiture(voiture).estProprietaire ? "#1D6E64" : "#8B96A3", fontWeight: 600 }}>
-                    {proprieteVoiture(voiture).label}
-                  </div>
+                {proprieteVoiture(voiture).estProprietaire && (
+                  <div style={{ color: "#1D6E64", fontWeight: 600 }}>{proprieteVoiture(voiture).label}</div>
                 )}
                 <div>Attribution : {formatDate(voiture.assignation.dateAttribution)}</div>
                 <div style={{ marginTop: 5 }}>
@@ -2369,7 +2369,7 @@ function FicheSalarieModal({
                 </div>
                 {!jaugeContratMasquee(voiture) && (
                   <div style={{ marginTop: 5 }}>
-                    <ContratGauge dateDebut={voiture.dateDebutContrat} dateFin={voiture.dateFinContrat} width={180} />
+                    <ContratGauge dateDebut={voiture.dateDebutContrat} dateFin={voiture.dateFinContrat} width={180} compact />
                   </div>
                 )}
               </div>
@@ -3253,6 +3253,7 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
               <tbody>
                 {filtered.map((v) => {
                   const days = v.assignation ? daysSince(v.assignation.dateAttribution) : null;
+                  const propriete = proprieteVoiture(v);
                   return (
                     <tr key={v.id} style={{ borderBottom: "1px solid #F0F2F4" }}>
                       <td style={{ padding: "12px 14px" }}>
@@ -3273,21 +3274,12 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
                         {resumeFinancierVoiture(v) && (
                           <div style={{ fontSize: 11, color: "#5C6B7A", marginTop: 2, fontWeight: 600 }}>{resumeFinancierVoiture(v)}</div>
                         )}
-                        {proprieteVoiture(v).label && (
-                          <div
-                            style={{
-                              fontSize: 10.5,
-                              color: proprieteVoiture(v).estProprietaire ? "#1D6E64" : "#8B96A3",
-                              marginTop: 3,
-                              fontWeight: 600,
-                            }}
-                          >
-                            {proprieteVoiture(v).label}
-                          </div>
+                        {propriete.estProprietaire && (
+                          <div style={{ fontSize: 10.5, color: "#1D6E64", marginTop: 3, fontWeight: 600 }}>{propriete.label}</div>
                         )}
                         {!jaugeContratMasquee(v) && (
                           <div style={{ marginTop: 6 }}>
-                            <ContratGauge dateDebut={v.dateDebutContrat} dateFin={v.dateFinContrat} width={160} />
+                            <ContratGauge dateDebut={v.dateDebutContrat} dateFin={v.dateFinContrat} width={160} compact />
                           </div>
                         )}
                       </td>
