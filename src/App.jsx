@@ -247,6 +247,8 @@ const VOITURE_CHAMP_LABELS = {
   prixAchat: "Prix d'achat",
   kmContractuel: "Kilométrage contractuel",
   kmReel: "Kilométrage réel",
+  vehiculeAchete: "Véhicule racheté",
+  dateAchatVehicule: "Date de rachat",
 };
 
 function valeurAffichable(v) {
@@ -507,6 +509,8 @@ const SEED_VOITURES = [
     typeContrat: "LLD",
     dateDebutContrat: "2023-05-02",
     dateFinContrat: "2027-05-02",
+    vehiculeAchete: false,
+    dateAchatVehicule: null,
     loyerMensuel: 420,
     optionAchat: null,
     prixAchat: null,
@@ -525,6 +529,8 @@ const SEED_VOITURES = [
     typeContrat: "LOA",
     dateDebutContrat: "2022-01-15",
     dateFinContrat: "2026-01-15",
+    vehiculeAchete: true,
+    dateAchatVehicule: "2026-01-15",
     loyerMensuel: 280,
     optionAchat: 6500,
     prixAchat: null,
@@ -759,6 +765,70 @@ function KmGauge({ kmReel, kmContractuel, width = 150 }) {
       </div>
     </div>
   );
+}
+
+function ContratGauge({ dateDebut, dateFin, width = 150 }) {
+  if (!dateDebut || !dateFin) {
+    return <span style={{ fontSize: 12, color: "#B7BFC7" }}>Non renseigné</span>;
+  }
+  const debut = new Date(dateDebut + "T00:00:00").getTime();
+  const fin = new Date(dateFin + "T00:00:00").getTime();
+  const maintenant = Date.now();
+  const total = fin - debut;
+  if (isNaN(debut) || isNaN(fin) || total <= 0) {
+    return <span style={{ fontSize: 12, color: "#B7BFC7" }}>Dates incohérentes</span>;
+  }
+  const ecoule = Math.min(Math.max(maintenant - debut, 0), total);
+  const pct = Math.round((ecoule / total) * 100);
+  const barWidth = Math.min(pct, 100);
+  const joursRestants = Math.max(Math.round((fin - maintenant) / 86400000), 0);
+  let color, label;
+  if (pct < 80) {
+    color = "#1D6E64";
+    label = "En cours";
+  } else if (pct <= 100) {
+    color = "#C67C2E";
+    label = "Fin proche";
+  } else {
+    color = "#A64B42";
+    label = "Contrat dépassé";
+  }
+  return (
+    <div style={{ minWidth: width }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5C6B7A", marginBottom: 3 }}>
+        <span>{formatDateCourt(dateDebut)}</span>
+        <span>{formatDateCourt(dateFin)}</span>
+      </div>
+      <div style={{ height: 6, borderRadius: 999, background: "#EDEFF1", overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${barWidth}%`, background: color, borderRadius: 999 }} />
+      </div>
+      <div style={{ fontSize: 10.5, color, marginTop: 3, fontWeight: 600 }}>
+        {label} · {pct}% écoulé · {joursRestants} j restants
+      </div>
+    </div>
+  );
+}
+
+function jaugeContratMasquee(v) {
+  return v.typeContrat === "Achat" || (v.typeContrat === "LOA" && v.vehiculeAchete);
+}
+
+function proprieteVoiture(v) {
+  if (v.typeContrat === "Achat") {
+    return { estProprietaire: true, label: "Propriété de l'entreprise (achat direct)" };
+  }
+  if (v.typeContrat === "LOA" && v.vehiculeAchete) {
+    return {
+      estProprietaire: true,
+      label: v.dateAchatVehicule
+        ? `Propriété de l'entreprise (racheté le ${formatDate(v.dateAchatVehicule)})`
+        : "Propriété de l'entreprise (racheté)",
+    };
+  }
+  if (v.typeContrat === "LLD" || v.typeContrat === "LOA") {
+    return { estProprietaire: false, label: `Loué (${v.typeContrat})` };
+  }
+  return { estProprietaire: false, label: null };
 }
 
 function Chip({ children }) {
@@ -2288,10 +2358,20 @@ function FicheSalarieModal({
               <div style={{ fontSize: 11, color: "#8B96A3", marginTop: 5, lineHeight: 1.6 }}>
                 <div>Contrat {voiture.typeContrat} : {formatDate(voiture.dateDebutContrat)} → {formatDate(voiture.dateFinContrat)}</div>
                 {resumeFinancierVoiture(voiture) && <div>{resumeFinancierVoiture(voiture)}</div>}
+                {proprieteVoiture(voiture).label && (
+                  <div style={{ color: proprieteVoiture(voiture).estProprietaire ? "#1D6E64" : "#8B96A3", fontWeight: 600 }}>
+                    {proprieteVoiture(voiture).label}
+                  </div>
+                )}
                 <div>Attribution : {formatDate(voiture.assignation.dateAttribution)}</div>
                 <div style={{ marginTop: 5 }}>
                   <KmGauge kmReel={voiture.kmReel} kmContractuel={voiture.kmContractuel} width={180} />
                 </div>
+                {!jaugeContratMasquee(voiture) && (
+                  <div style={{ marginTop: 5 }}>
+                    <ContratGauge dateDebut={voiture.dateDebutContrat} dateFin={voiture.dateFinContrat} width={180} />
+                  </div>
+                )}
               </div>
             )
           }
@@ -3193,6 +3273,23 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
                         {resumeFinancierVoiture(v) && (
                           <div style={{ fontSize: 11, color: "#5C6B7A", marginTop: 2, fontWeight: 600 }}>{resumeFinancierVoiture(v)}</div>
                         )}
+                        {proprieteVoiture(v).label && (
+                          <div
+                            style={{
+                              fontSize: 10.5,
+                              color: proprieteVoiture(v).estProprietaire ? "#1D6E64" : "#8B96A3",
+                              marginTop: 3,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {proprieteVoiture(v).label}
+                          </div>
+                        )}
+                        {!jaugeContratMasquee(v) && (
+                          <div style={{ marginTop: 6 }}>
+                            <ContratGauge dateDebut={v.dateDebutContrat} dateFin={v.dateFinContrat} width={160} />
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: "12px 14px" }}>
                         <KmGauge kmReel={v.kmReel} kmContractuel={v.kmContractuel} />
@@ -3343,6 +3440,8 @@ function VoitureFormModal({ initial, onClose, onSave }) {
   const [prixAchat, setPrixAchat] = useState(initial?.prixAchat ?? "");
   const [kmContractuel, setKmContractuel] = useState(initial?.kmContractuel ?? "");
   const [kmReel, setKmReel] = useState(initial?.kmReel ?? "");
+  const [vehiculeAchete, setVehiculeAchete] = useState(initial?.vehiculeAchete || false);
+  const [dateAchatVehicule, setDateAchatVehicule] = useState(initial?.dateAchatVehicule || todayISO());
   const [error, setError] = useState("");
 
   const submit = () => {
@@ -3350,6 +3449,7 @@ function VoitureFormModal({ initial, onClose, onSave }) {
       setError("Marque, modèle et immatriculation sont requis.");
       return;
     }
+    const rachete = typeContrat === "LOA" && vehiculeAchete;
     onSave(
       {
         marque: marque.trim(),
@@ -3363,6 +3463,8 @@ function VoitureFormModal({ initial, onClose, onSave }) {
         prixAchat: typeContrat === "Achat" ? Number(prixAchat) || 0 : null,
         kmContractuel: kmContractuel === "" ? 0 : Number(kmContractuel),
         kmReel: kmReel === "" ? 0 : Number(kmReel),
+        vehiculeAchete: rachete,
+        dateAchatVehicule: rachete ? dateAchatVehicule || null : null,
       },
       initial?.id
     );
@@ -3489,6 +3591,57 @@ function VoitureFormModal({ initial, onClose, onSave }) {
           <KmGauge kmReel={Number(kmReel) || 0} kmContractuel={Number(kmContractuel) || 0} width={220} />
         </div>
       )}
+
+      {typeContrat === "LOA" && (
+        <>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: vehiculeAchete ? 10 : 13,
+              cursor: "pointer",
+            }}
+            onClick={() => setVehiculeAchete((v) => !v)}
+          >
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 5,
+                border: vehiculeAchete ? "1px solid #1B2430" : "1px solid #D7DCE1",
+                background: vehiculeAchete ? "#1B2430" : "#FBFCFD",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              {vehiculeAchete && <Check size={12} color="#fff" />}
+            </div>
+            <span style={{ fontSize: 13, color: "#1B2430", fontWeight: 500 }}>
+              Véhicule racheté (option d'achat exercée)
+            </span>
+          </div>
+          {vehiculeAchete && (
+            <Field label="Date de rachat" hint="La jauge d'avancement du contrat n'est alors plus affichée.">
+              <input
+                type="date"
+                style={inputStyle}
+                value={dateAchatVehicule}
+                onChange={(e) => setDateAchatVehicule(e.target.value)}
+              />
+            </Field>
+          )}
+        </>
+      )}
+
+      {!jaugeContratMasquee({ typeContrat, vehiculeAchete }) && dateDebutContrat && dateFinContrat && (
+        <div style={{ marginBottom: 13 }}>
+          <ContratGauge dateDebut={dateDebutContrat} dateFin={dateFinContrat} width={220} />
+        </div>
+      )}
+
       {error && <div style={{ color: "#A64B42", fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
         <GhostButton full onClick={onClose}>Annuler</GhostButton>
