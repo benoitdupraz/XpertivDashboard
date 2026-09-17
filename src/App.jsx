@@ -59,7 +59,7 @@ const VOITURE_ETAT_STYLES = {
 
 const STATUT_EMPLOYE_STYLES = {
   "Actif": { fg: "#1D6E64", bg: "#E4F1EE", dot: "#1D6E64" },
-  "Inactif": { fg: "#6B7280", bg: "#EDEEF0", dot: "#9AA1AA" },
+  "Sorti": { fg: "#6B7280", bg: "#EDEEF0", dot: "#9AA1AA" },
 };
 
 const PROFIL_STYLES = {
@@ -132,9 +132,13 @@ function daysSince(d) {
   return Math.floor((Date.now() - dt.getTime()) / 86400000);
 }
 
-function anciennete(d) {
-  const days = daysSince(d);
-  if (days === null) return "—";
+function anciennete(dateDebut, dateFin) {
+  if (!dateDebut) return "—";
+  const fin = dateFin || todayISO();
+  const debut = new Date(dateDebut + "T00:00:00");
+  const finDate = new Date(fin + "T00:00:00");
+  const days = Math.floor((finDate - debut) / 86400000);
+  if (isNaN(days) || days < 0) return "—";
   if (days < 31) return `${days} j`;
   const months = Math.floor(days / 30.4);
   if (months < 24) return `${months} mois`;
@@ -209,7 +213,7 @@ function estActif(employe) {
 }
 
 function statutDe(employe) {
-  return estActif(employe) ? "Actif" : "Inactif";
+  return estActif(employe) ? "Actif" : "Sorti";
 }
 
 function nomComplet(employe) {
@@ -757,36 +761,67 @@ function Badge({ label, styleMap }) {
   );
 }
 
-function KmGauge({ kmReel, kmContractuel, width = 150 }) {
+function kmTheoriqueADate(dateDebutContrat, dateFinContrat, kmContractuel, dateRef) {
+  if (!dateDebutContrat || !dateFinContrat || !kmContractuel) return null;
+  const debut = new Date(dateDebutContrat + "T00:00:00").getTime();
+  const fin = new Date(dateFinContrat + "T00:00:00").getTime();
+  const maintenant = new Date((dateRef || todayISO()) + "T00:00:00").getTime();
+  const total = fin - debut;
+  if (isNaN(debut) || isNaN(fin) || total <= 0) return null;
+  const ecoule = Math.min(Math.max(maintenant - debut, 0), total);
+  return kmContractuel * (ecoule / total);
+}
+
+function KmGauge({ kmReel, kmContractuel, dateDebutContrat, dateFinContrat, width = 150 }) {
   if (!kmContractuel) {
     return <span style={{ fontSize: 12, color: "#B7BFC7" }}>Non renseigné</span>;
   }
-  const pct = Math.round(((kmReel || 0) / kmContractuel) * 100);
-  const barWidth = Math.min(pct, 100);
-  const delta = kmContractuel - (kmReel || 0);
-  let color, label;
-  if (pct < 85) {
-    color = "#1D6E64";
-    label = "Dans les clous";
-  } else if (pct <= 100) {
-    color = "#C67C2E";
-    label = "À surveiller";
+  const reel = kmReel || 0;
+  const barWidth = Math.min(Math.round((reel / kmContractuel) * 100), 100);
+  const kmTheorique = kmTheoriqueADate(dateDebutContrat, dateFinContrat, kmContractuel);
+
+  let color, statusText;
+  if (kmTheorique === null || kmTheorique === 0) {
+    // Dates de contrat non exploitables : à défaut, on ne peut que comparer au total.
+    color = reel <= kmContractuel ? "#1D6E64" : "#1B2430";
+    const delta = kmContractuel - reel;
+    statusText = delta >= 0 ? `${delta.toLocaleString("fr-FR")} km restants` : `${Math.abs(delta).toLocaleString("fr-FR")} km au-delà`;
   } else {
-    color = "#A64B42";
-    label = "Dépassement";
+    const deviation = ((reel - kmTheorique) / kmTheorique) * 100;
+    if (deviation > 10) {
+      color = "#1B2430"; // noir : nettement au-dessus du rythme théorique (> +10%)
+    } else if (deviation >= -10) {
+      color = "#A64B42"; // rouge : proche du rythme théorique (entre -10% et +10%)
+    } else {
+      color = "#1D6E64"; // vert : marge confortable sous le rythme théorique (< -10%)
+    }
+    const arrondi = Math.round(deviation);
+    statusText = `${arrondi >= 0 ? "+" : ""}${arrondi}% vs rythme prévu (${Math.round(kmTheorique).toLocaleString("fr-FR")} km à date)`;
   }
+
   return (
     <div style={{ minWidth: width }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5C6B7A", marginBottom: 3 }}>
-        <span>{(kmReel || 0).toLocaleString("fr-FR")} km</span>
+        <span>{reel.toLocaleString("fr-FR")} km</span>
         <span>{kmContractuel.toLocaleString("fr-FR")} km</span>
       </div>
-      <div style={{ height: 6, borderRadius: 999, background: "#EDEFF1", overflow: "hidden" }}>
+      <div style={{ height: 6, borderRadius: 999, background: "#EDEFF1", overflow: "hidden", position: "relative" }}>
         <div style={{ height: "100%", width: `${barWidth}%`, background: color, borderRadius: 999 }} />
+        {kmTheorique !== null && (
+          <div
+            title="Rythme théorique à date"
+            style={{
+              position: "absolute",
+              top: -1,
+              bottom: -1,
+              left: `${Math.min((kmTheorique / kmContractuel) * 100, 100)}%`,
+              width: 2,
+              background: "#1B2430",
+            }}
+          />
+        )}
       </div>
-      <div style={{ fontSize: 10.5, color, marginTop: 3, fontWeight: 600 }}>
-        {label} · {delta >= 0 ? `${delta.toLocaleString("fr-FR")} km restants` : `${Math.abs(delta).toLocaleString("fr-FR")} km au-delà`}
-      </div>
+      <div style={{ fontSize: 10.5, color, marginTop: 3, fontWeight: 700 }}>{statusText}</div>
     </div>
   );
 }
@@ -1537,7 +1572,7 @@ export default function App({ currentUser } = {}) {
     persistEmployes(employes.map((e) => (e.id === id ? { ...e, dateFinContrat } : e)));
     if (employe) {
       enregistrerModification("salarie", id, nomComplet(employe), [
-        { champ: "Statut", ancienneValeur: "Actif", nouvelleValeur: `Inactif (fin de contrat le ${formatDate(dateFinContrat)})` },
+        { champ: "Statut", ancienneValeur: "Actif", nouvelleValeur: `Sorti (fin de contrat le ${formatDate(dateFinContrat)})` },
       ]);
     }
   };
@@ -1547,7 +1582,7 @@ export default function App({ currentUser } = {}) {
     persistEmployes(employes.map((e) => (e.id === id ? { ...e, dateFinContrat: null } : e)));
     if (employe) {
       enregistrerModification("salarie", id, nomComplet(employe), [
-        { champ: "Statut", ancienneValeur: "Inactif", nouvelleValeur: "Actif" },
+        { champ: "Statut", ancienneValeur: "Sorti", nouvelleValeur: "Actif" },
       ]);
     }
   };
@@ -1978,7 +2013,7 @@ function SalariesView({
         <select style={{ ...inputStyle, width: "auto", cursor: "pointer" }} value={filterStatut} onChange={(e) => setFilterStatut(e.target.value)}>
           <option value="Tous">Tous les statuts</option>
           <option value="Actif">Actifs</option>
-          <option value="Inactif">Inactifs</option>
+          <option value="Sorti">Sortis</option>
         </select>
         <div style={{ flex: 1 }} />
         <PrimaryButton onClick={() => setShowForm(true)}>
@@ -2056,7 +2091,7 @@ function SalariesView({
                       </td>
                       <td style={{ padding: "12px 14px", color: "#5C6B7A", fontSize: 12.5 }}>
                         {formatDate(e.dateDebut)}
-                        <div style={{ fontSize: 11, color: "#8B96A3" }}>{anciennete(e.dateDebut)}</div>
+                        <div style={{ fontSize: 11, color: "#8B96A3" }}>{anciennete(e.dateDebut, actif ? null : e.dateFinContrat)}</div>
                       </td>
                       <td style={{ padding: "12px 14px" }}>
                         {poste ? (
@@ -2332,7 +2367,7 @@ function FicheSalarieModal({
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, marginBottom: 6 }}>
         <InfoRow icon={<Cake size={13} />} label="Date de naissance" value={employe.dateNaissance ? `${formatDate(employe.dateNaissance)} (${age} ans)` : null} />
-        <InfoRow icon={<UserRound size={13} />} label="Début de contrat" value={`${formatDate(employe.dateDebut)} · ${anciennete(employe.dateDebut)}`} />
+        <InfoRow icon={<UserRound size={13} />} label="Début de contrat" value={`${formatDate(employe.dateDebut)} · ${anciennete(employe.dateDebut, actif ? null : employe.dateFinContrat)}`} />
         <InfoRow icon={<Mail size={13} />} label="Email pro" value={employe.emailPro} />
         <InfoRow icon={<Mail size={13} />} label="Email perso" value={employe.emailPerso} />
         <InfoRow icon={<Phone size={13} />} label="Téléphone" value={employe.telephone} />
@@ -2413,7 +2448,13 @@ function FicheSalarieModal({
                 )}
                 <div>Attribution : {formatDate(voiture.assignation.dateAttribution)}</div>
                 <div style={{ marginTop: 5 }}>
-                  <KmGauge kmReel={voiture.kmReel} kmContractuel={voiture.kmContractuel} width={180} />
+                  <KmGauge
+                    kmReel={voiture.kmReel}
+                    kmContractuel={voiture.kmContractuel}
+                    dateDebutContrat={voiture.dateDebutContrat}
+                    dateFinContrat={voiture.dateFinContrat}
+                    width={180}
+                  />
                 </div>
                 {!jaugeContratMasquee(voiture) && (
                   <div style={{ marginTop: 5 }}>
@@ -2648,7 +2689,7 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
 
       <Field
         label="Date de fin de contrat"
-        hint="Laisser vide pour un CDI. Le salarié repasse automatiquement en « Inactif » dès que cette date est dépassée."
+        hint="Laisser vide pour un CDI. Le salarié repasse automatiquement en « Sorti » dès que cette date est dépassée."
       >
         <input type="date" style={inputStyle} value={dateFinContrat} onChange={(e) => setDateFinContrat(e.target.value)} />
       </Field>
@@ -3330,7 +3371,12 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
                         )}
                       </td>
                       <td style={{ padding: "12px 14px" }}>
-                        <KmGauge kmReel={v.kmReel} kmContractuel={v.kmContractuel} />
+                        <KmGauge
+                          kmReel={v.kmReel}
+                          kmContractuel={v.kmContractuel}
+                          dateDebutContrat={v.dateDebutContrat}
+                          dateFinContrat={v.dateFinContrat}
+                        />
                       </td>
                       <td style={{ padding: "12px 14px" }}>
                         <Pill label={v.etat} styleMap={VOITURE_ETAT_STYLES} />
@@ -3619,7 +3665,13 @@ function VoitureFormModal({ initial, onClose, onSave }) {
       </div>
       {(kmContractuel !== "" || kmReel !== "") && (
         <div style={{ marginBottom: 13 }}>
-          <KmGauge kmReel={Number(kmReel) || 0} kmContractuel={Number(kmContractuel) || 0} width={220} />
+          <KmGauge
+            kmReel={Number(kmReel) || 0}
+            kmContractuel={Number(kmContractuel) || 0}
+            dateDebutContrat={dateDebutContrat}
+            dateFinContrat={dateFinContrat}
+            width={220}
+          />
         </div>
       )}
 
@@ -3707,7 +3759,13 @@ function UpdateKmModal({ voiture, onClose, onSave }) {
         />
       </Field>
       <div style={{ marginBottom: 13 }}>
-        <KmGauge kmReel={Number(kmReel) || 0} kmContractuel={voiture.kmContractuel} width={220} />
+        <KmGauge
+          kmReel={Number(kmReel) || 0}
+          kmContractuel={voiture.kmContractuel}
+          dateDebutContrat={voiture.dateDebutContrat}
+          dateFinContrat={voiture.dateFinContrat}
+          width={220}
+        />
       </div>
       {error && <div style={{ color: "#A64B42", fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
