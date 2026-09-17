@@ -83,6 +83,32 @@ const STORAGE_KEYS = {
   historiqueModifications: "xpertiv:historiqueModifications",
 };
 
+// Dans Claude (artifact), window.storage existe et sessionStorage ne doit
+// pas être utilisé. En dehors (déploiement réel), on s'en sert pour survivre
+// à un rechargement complet de page — notamment quand le navigateur décharge
+// un onglet inactif de la mémoire (fréquent sur mobile et avec les modes
+// d'économie de mémoire des navigateurs), ce qui perd tout l'état React.
+const HAS_CLAUDE_STORAGE = typeof window !== "undefined" && !!window.storage;
+
+function lireOngletSauvegarde() {
+  if (HAS_CLAUDE_STORAGE) return "salaries";
+  try {
+    return sessionStorage.getItem("xpertiv:ongletActif") || "salaries";
+  } catch (e) {
+    return "salaries";
+  }
+}
+
+function sauvegarderOnglet(tab) {
+  if (HAS_CLAUDE_STORAGE) return;
+  try {
+    sessionStorage.setItem("xpertiv:ongletActif", tab);
+  } catch (e) {
+    // sessionStorage indisponible (navigation privée stricte, etc.) : tant pis,
+    // on continue sans persistance plutôt que de faire planter l'app.
+  }
+}
+
 /* ---------------------------------- helpers ---------------------------------- */
 
 function uid() {
@@ -1246,7 +1272,11 @@ function HistoriqueCombineModal({ title, subtitle, current, historiqueAttributio
 /* ---------------------------------- App racine ---------------------------------- */
 
 export default function App({ currentUser } = {}) {
-  const [tab, setTab] = useState("salaries");
+  const [tab, setTabState] = useState(lireOngletSauvegarde);
+  const setTab = (t) => {
+    setTabState(t);
+    sauvegarderOnglet(t);
+  };
   const [employes, setEmployes] = useState([]);
   const [postes, setPostes] = useState([]);
   const [voitures, setVoitures] = useState([]);
@@ -1258,7 +1288,6 @@ export default function App({ currentUser } = {}) {
 
   useEffect(() => {
     (async () => {
-      const usingClaudeStorage = typeof window !== "undefined" && !!window.storage;
       const load = async (key, seed) => {
         try {
           const res = await storage.get(key, false);
@@ -1266,7 +1295,7 @@ export default function App({ currentUser } = {}) {
         } catch (e) {
           // En dehors de Claude (déploiement réel), une clé absente signifie
           // une base réellement vide — jamais les données de démonstration.
-          return usingClaudeStorage ? seed : [];
+          return HAS_CLAUDE_STORAGE ? seed : [];
         }
       };
       const [e, p, v, h] = await Promise.all([
