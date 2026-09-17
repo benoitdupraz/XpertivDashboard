@@ -32,6 +32,7 @@ import {
   Check,
   ShieldCheck,
   ShieldAlert,
+  AlertTriangle,
   ClipboardList,
   Calendar,
   Printer,
@@ -130,11 +131,8 @@ function resumeFinancierVoiture(v) {
   if (v.typeContrat === "LLD" && v.loyerMensuel) {
     return `${formatEuros(v.loyerMensuel)} / mois`;
   }
-  if (v.typeContrat === "LOA" && (v.loyerMensuel || v.optionAchat)) {
-    const parts = [];
-    if (v.loyerMensuel) parts.push(`${formatEuros(v.loyerMensuel)} / mois`);
-    if (v.optionAchat) parts.push(`option d'achat ${formatEuros(v.optionAchat)}`);
-    return parts.join(" · ");
+  if (v.typeContrat === "LOA" && v.loyerMensuel) {
+    return `${formatEuros(v.loyerMensuel)} / mois`;
   }
   if (v.typeContrat === "Achat" && v.prixAchat) {
     return `Achat : ${formatEuros(v.prixAchat)}`;
@@ -781,20 +779,27 @@ function ContratGauge({ dateDebut, dateFin, width = 150, compact = false }) {
   const ecoule = Math.min(Math.max(maintenant - debut, 0), total);
   const pct = Math.round((ecoule / total) * 100);
   const barWidth = Math.min(pct, 100);
-  const joursRestants = Math.max(Math.round((fin - maintenant) / 86400000), 0);
-  let color, label;
-  if (pct < 80) {
-    color = "#1D6E64";
-    label = "En cours";
-  } else if (pct <= 100) {
-    color = "#C67C2E";
-    label = "Fin proche";
+  const joursRestants = Math.round((fin - maintenant) / 86400000);
+  const depasse = joursRestants < 0;
+
+  let color;
+  if (depasse) {
+    color = "#1B2430"; // noir : contrat dépassé
+  } else if (joursRestants < 365) {
+    color = "#A64B42"; // rouge : moins de 12 mois avant la fin
   } else {
-    color = "#A64B42";
-    label = "Contrat dépassé";
+    color = "#1D6E64"; // vert : plus de 12 mois restants
   }
+
   return (
-    <div style={{ minWidth: width }}>
+    <div
+      style={{
+        minWidth: width,
+        ...(depasse
+          ? { background: "#F6E7E5", border: "1px solid #E3B9B4", borderRadius: 8, padding: "6px 8px" }
+          : {}),
+      }}
+    >
       {!compact && (
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5C6B7A", marginBottom: 3 }}>
           <span>{formatDateCourt(dateDebut)}</span>
@@ -804,8 +809,21 @@ function ContratGauge({ dateDebut, dateFin, width = 150, compact = false }) {
       <div style={{ height: 6, borderRadius: 999, background: "#EDEFF1", overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${barWidth}%`, background: color, borderRadius: 999 }} />
       </div>
-      <div style={{ fontSize: 10.5, color, marginTop: 3, fontWeight: 600 }}>
-        {compact ? `${pct}% écoulé · ${joursRestants} j restants` : `${label} · ${pct}% écoulé · ${joursRestants} j restants`}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          fontSize: depasse ? 11.5 : 10.5,
+          color,
+          marginTop: 4,
+          fontWeight: 700,
+        }}
+      >
+        {depasse && <AlertTriangle size={13} />}
+        {depasse
+          ? `Contrat dépassé de ${Math.abs(joursRestants)} j`
+          : `${pct}% écoulé · ${joursRestants} j restants`}
       </div>
     </div>
   );
