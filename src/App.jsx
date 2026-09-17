@@ -818,9 +818,10 @@ function ContratGauge({ dateDebut, dateFin, width = 150, compact = false }) {
           color,
           marginTop: 4,
           fontWeight: 700,
+          whiteSpace: "nowrap",
         }}
       >
-        {depasse && <AlertTriangle size={13} />}
+        {depasse && <AlertTriangle size={13} style={{ flexShrink: 0 }} />}
         {depasse
           ? `Contrat dépassé de ${Math.abs(joursRestants)} j`
           : `${pct}% écoulé · ${joursRestants} j restants`}
@@ -1612,7 +1613,7 @@ export default function App({ currentUser } = {}) {
 
 function Shell({ tab, setTab, children }) {
   const tabs = [
-    { id: "salaries", label: "Salariés", icon: <Users size={15} /> },
+    { id: "salaries", label: "Xpertiv Squad", icon: <Users size={15} /> },
     { id: "postes", label: "Postes (PC)", icon: <Monitor size={15} /> },
     { id: "voitures", label: "Véhicules", icon: <Car size={15} /> },
   ];
@@ -3270,13 +3271,11 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
               </thead>
               <tbody>
                 {filtered.map((v) => {
-                  const days = v.assignation ? daysSince(v.assignation.dateAttribution) : null;
                   const propriete = proprieteVoiture(v);
                   return (
                     <tr key={v.id} style={{ borderBottom: "1px solid #F0F2F4" }}>
                       <td style={{ padding: "12px 14px" }}>
                         <div style={{ fontWeight: 600, color: "#1B2430" }}>{v.marque} {v.modele}</div>
-                        <div style={{ fontSize: 11.5, color: "#8B96A3" }}>Début le {formatDate(v.dateDebutContrat)}</div>
                         {v.etat === "Retirée" && v.dateRetrait && (
                           <div style={{ fontSize: 11.5, color: "#8A3A32" }}>Retirée le {formatDate(v.dateRetrait)}</div>
                         )}
@@ -3315,14 +3314,7 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
                         )}
                       </td>
                       <td style={{ padding: "12px 14px", color: "#5C6B7A", fontSize: 12.5 }}>
-                        {v.assignation ? (
-                          <>
-                            {formatDate(v.assignation.dateAttribution)}
-                            <div style={{ fontSize: 11, color: "#8B96A3" }}>{days} j</div>
-                          </>
-                        ) : (
-                          "—"
-                        )}
+                        {v.assignation ? formatDate(v.assignation.dateAttribution) : "—"}
                       </td>
                       <td style={{ padding: "10px 10px" }}>
                         <div style={{ display: "flex", gap: 2, justifyContent: "flex-end", flexWrap: "wrap" }}>

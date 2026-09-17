@@ -96,8 +96,21 @@ export default function AuthGate() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: listener } = supabase.auth.onAuthStateChange((event, sess) => {
-      setSession(sess);
-      if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+        return;
+      }
+      // Supabase rafraîchit silencieusement la session à chaque retour de
+      // focus sur l'onglet du navigateur (événement TOKEN_REFRESHED). Sans
+      // cette protection, chaque retour d'onglet remonte tout <App /> depuis
+      // zéro (perte de l'onglet actif et des popups ouverts). On ignore ces
+      // rafraîchissements tant que l'utilisateur connecté ne change pas.
+      setSession((prev) => {
+        if (event === "TOKEN_REFRESHED" && prev?.user?.id === sess?.user?.id) {
+          return prev;
+        }
+        return sess;
+      });
     });
     return () => listener.subscription.unsubscribe();
   }, []);
