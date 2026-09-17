@@ -2042,7 +2042,7 @@ function SalariesView({
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "#F6F7F8", textAlign: "left" }}>
-                  {["Matricule", "Salarié", "Profil", "Depuis", "PC", "Véhicule", "Statut", ""].map((h, i) => (
+                  {["Collaborateur", "Matricule", "Profil", "Depuis", "PC", "Véhicule", "Statut", ""].map((h, i) => (
                     <th
                       key={i}
                       style={{
@@ -2068,9 +2068,6 @@ function SalariesView({
                   const actif = estActif(e);
                   return (
                     <tr key={e.id} style={{ borderBottom: "1px solid #F0F2F4" }}>
-                      <td style={{ padding: "12px 14px", fontFamily: "var(--font-mono)", fontSize: 12.5, color: "#5C6B7A" }}>
-                        {e.matricule}
-                      </td>
                       <td style={{ padding: "12px 14px" }}>
                         <button
                           onClick={() => setFicheFor(e)}
@@ -2088,6 +2085,9 @@ function SalariesView({
                           <Avatar nom={nomComplet(e)} size={30} />
                           <span style={{ fontWeight: 600, color: "#1B2430" }}>{nomComplet(e)}</span>
                         </button>
+                      </td>
+                      <td style={{ padding: "12px 14px", fontFamily: "var(--font-mono)", fontSize: 12.5, color: "#5C6B7A" }}>
+                        {e.matricule}
                       </td>
                       <td style={{ padding: "12px 14px" }}>
                         <Badge label={e.profil} styleMap={PROFIL_STYLES} />
@@ -2832,8 +2832,8 @@ function PostesView({ postes, employes, historique, savePoste, deletePoste, assi
                   return (
                     <tr key={p.id} style={{ borderBottom: "1px solid #F0F2F4" }}>
                       <td style={{ padding: "12px 14px" }}>
-                        <div style={{ fontWeight: 600, color: "#1B2430" }}>{p.marque} {p.modele}</div>
-                        <div style={{ fontSize: 11.5, color: "#8B96A3" }}>Acquis le {formatDate(p.dateAchat)}</div>
+                        <div style={{ fontWeight: 600, color: "#1B2430" }}>{p.marque}</div>
+                        <div style={{ fontSize: 12.5, color: "#5C6B7A" }}>{p.modele}</div>
                         {p.etat === "Retiré" && p.dateRetrait && (
                           <div style={{ fontSize: 11.5, color: "#8A3A32" }}>Retiré le {formatDate(p.dateRetrait)}</div>
                         )}
@@ -3355,7 +3355,8 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
                   return (
                     <tr key={v.id} style={{ borderBottom: "1px solid #F0F2F4" }}>
                       <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
-                        <div style={{ fontWeight: 600, color: "#1B2430" }}>{v.marque} {v.modele}</div>
+                        <div style={{ fontWeight: 600, color: "#1B2430" }}>{v.marque}</div>
+                        <div style={{ fontSize: 12.5, color: "#5C6B7A" }}>{v.modele}</div>
                         {v.etat === "Retirée" && v.dateRetrait && (
                           <div style={{ fontSize: 11.5, color: "#8A3A32" }}>Retirée le {formatDate(v.dateRetrait)}</div>
                         )}
