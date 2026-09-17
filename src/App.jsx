@@ -870,14 +870,7 @@ function ContratGauge({ dateDebut, dateFin, width = 150, compact = false }) {
   }
 
   return (
-    <div
-      style={{
-        minWidth: width,
-        ...(depasse
-          ? { background: "#F6E7E5", border: "1px solid #E3B9B4", borderRadius: 8, padding: "6px 8px" }
-          : {}),
-      }}
-    >
+    <div style={{ minWidth: width }}>
       {!compact && (
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5C6B7A", marginBottom: 3 }}>
           <span>{formatDateCourt(dateDebut)}</span>
@@ -3361,13 +3354,13 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
                   const propriete = proprieteVoiture(v);
                   return (
                     <tr key={v.id} style={{ borderBottom: "1px solid #F0F2F4" }}>
-                      <td style={{ padding: "12px 14px", verticalAlign: "bottom" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                         <div style={{ fontWeight: 600, color: "#1B2430" }}>{v.marque} {v.modele}</div>
                         {v.etat === "Retirée" && v.dateRetrait && (
                           <div style={{ fontSize: 11.5, color: "#8A3A32" }}>Retirée le {formatDate(v.dateRetrait)}</div>
                         )}
                       </td>
-                      <td style={{ padding: "12px 14px", verticalAlign: "bottom", fontFamily: "var(--font-mono)", fontSize: 12.5, color: "#3A4453" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle", fontFamily: "var(--font-mono)", fontSize: 12.5, color: "#3A4453" }}>
                         {v.immatriculation}
                       </td>
                       <td style={{ padding: "12px 14px", verticalAlign: "bottom" }}>
@@ -3397,20 +3390,20 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
                           width={150}
                         />
                       </td>
-                      <td style={{ padding: "12px 14px", verticalAlign: "bottom" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                         <Pill label={v.etat} styleMap={VOITURE_ETAT_STYLES} />
                       </td>
-                      <td style={{ padding: "12px 14px", verticalAlign: "bottom" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                         {v.assignation ? (
                           <div style={{ color: "#1B2430", fontWeight: 500 }}>{v.assignation.employeNom}</div>
                         ) : (
                           <span style={{ color: "#B7BFC7" }}>—</span>
                         )}
                       </td>
-                      <td style={{ padding: "12px 14px", verticalAlign: "bottom", color: "#5C6B7A", fontSize: 12.5 }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle", color: "#5C6B7A", fontSize: 12.5 }}>
                         {v.assignation ? formatDate(v.assignation.dateAttribution) : "—"}
                       </td>
-                      <td style={{ padding: "10px 10px", verticalAlign: "bottom" }}>
+                      <td style={{ padding: "10px 10px", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", gap: 2, justifyContent: "flex-end", flexWrap: "wrap" }}>
                           {v.etat !== "Attribuée" && v.etat !== "Retirée" && (
                             <SmallActionButton icon={<UserPlus size={15} />} label="Attribuer" onClick={() => setAssigning(v)} />
