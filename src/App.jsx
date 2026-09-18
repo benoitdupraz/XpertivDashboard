@@ -36,6 +36,7 @@ import {
   ClipboardList,
   Calendar,
   Printer,
+  TrendingUp,
 } from "lucide-react";
 
 /* ---------------------------------- constantes ---------------------------------- */
@@ -206,6 +207,14 @@ function libelleEcheance(jours) {
   if (jours === 0) return "aujourd'hui";
   if (jours === 1) return "demain";
   return `dans ${jours} j`;
+}
+
+function joursRestantsDepuis(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + "T00:00:00").getTime();
+  const now = new Date(todayISO() + "T00:00:00").getTime();
+  if (isNaN(d)) return null;
+  return Math.round((d - now) / 86400000);
 }
 
 function estActif(employe) {
@@ -1704,6 +1713,10 @@ export default function App({ currentUser } = {}) {
           onFocusHandled={() => setFocusRequest(null)}
         />
       )}
+
+      {tab === "pilotage" && (
+        <PilotageView employes={employes} postes={postes} voitures={voitures} onSelectResult={handleSelectResult} />
+      )}
     </Shell>
   );
 }
@@ -1879,6 +1892,7 @@ function Shell({ tab, setTab, employes, postes, voitures, onSelectResult, childr
     { id: "salaries", label: "Xpertiv Squad", icon: <Users size={15} /> },
     { id: "postes", label: "Postes (PC)", icon: <Monitor size={15} /> },
     { id: "voitures", label: "Véhicules", icon: <Car size={15} /> },
+    { id: "pilotage", label: "Pilotage", icon: <TrendingUp size={15} /> },
   ];
   return (
     <div
@@ -2153,6 +2167,176 @@ function MiniListDark({ icon, title, items, emptyText, renderItem, onOpenFiche }
 }
 
 /* ---------------------------------- Vue Salariés ---------------------------------- */
+
+/* ---------------------------------- Pilotage (coûts & échéances) ---------------------------------- */
+
+const ECHEANCE_STYLES = {
+  voiture: { icon: <Car size={14} />, categorie: "Véhicule" },
+  poste: { icon: <Monitor size={14} />, categorie: "Poste (PC)" },
+  salarie: { icon: <Users size={14} />, categorie: "Salarié" },
+};
+
+function EcheanceRow({ item, onClick }) {
+  const depasse = item.jours < 0;
+  const urgent = item.jours >= 0 && item.jours <= 30;
+  const color = depasse ? "#1B2430" : urgent ? "#A64B42" : "#5C6B7A";
+  const libelle = depasse ? `Dépassé de ${Math.abs(item.jours)} j` : libelleEcheance(item.jours);
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        width: "100%",
+        padding: "12px 14px",
+        border: "none",
+        background: "transparent",
+        cursor: "pointer",
+        textAlign: "left",
+        borderBottom: "1px solid #F0F2F4",
+      }}
+    >
+      <div
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 8,
+          background: "#F0F2F4",
+          color: "#5C6B7A",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {ECHEANCE_STYLES[item.type].icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#1B2430" }}>{item.label}</div>
+        <div style={{ fontSize: 11.5, color: "#8B96A3" }}>
+          {ECHEANCE_STYLES[item.type].categorie} · {item.detail} · {formatDate(item.date)}
+          {item.montant ? ` · ${formatEuros(item.montant)}/mois` : ""}
+        </div>
+      </div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color, whiteSpace: "nowrap" }}>{libelle}</div>
+    </button>
+  );
+}
+
+function PilotageView({ employes, postes, voitures, onSelectResult }) {
+  const echeances = useMemo(() => {
+    const items = [];
+
+    voitures.forEach((v) => {
+      if (jaugeContratMasquee(v) || v.etat === "Retirée" || !v.dateFinContrat) return;
+      const j = joursRestantsDepuis(v.dateFinContrat);
+      if (j !== null && j <= 90 && j >= -90) {
+        items.push({
+          type: "voiture",
+          id: v.id,
+          label: `${v.marque} ${v.modele}`,
+          detail: v.immatriculation,
+          date: v.dateFinContrat,
+          jours: j,
+          montant: v.loyerMensuel || 0,
+        });
+      }
+    });
+
+    postes.forEach((p) => {
+      if (p.etat === "Retiré") return;
+      const g = garantieEffective(p);
+      if (!g.date) return;
+      const j = joursRestantsDepuis(g.date);
+      if (j !== null && j <= 90 && j >= -90) {
+        items.push({
+          type: "poste",
+          id: p.id,
+          label: `${p.marque} ${p.modele}`,
+          detail: p.nomPC || p.numeroSerie,
+          date: g.date,
+          jours: j,
+          montant: 0,
+        });
+      }
+    });
+
+    employes.forEach((e) => {
+      if (!e.dateFinContrat || !estActif(e)) return;
+      const j = joursRestantsDepuis(e.dateFinContrat);
+      if (j !== null && j <= 90 && j >= -90) {
+        items.push({
+          type: "salarie",
+          id: e.id,
+          label: nomComplet(e),
+          detail: `Matricule ${e.matricule}`,
+          date: e.dateFinContrat,
+          jours: j,
+          montant: 0,
+        });
+      }
+    });
+
+    return items.sort((a, b) => a.jours - b.jours);
+  }, [voitures, postes, employes]);
+
+  const coutMensuelActuel = useMemo(() => {
+    return voitures
+      .filter((v) => v.etat !== "Retirée" && !jaugeContratMasquee(v))
+      .reduce((sum, v) => sum + (v.loyerMensuel || 0), 0);
+  }, [voitures]);
+
+  const impactEcheances = useMemo(() => {
+    return echeances.filter((e) => e.type === "voiture").reduce((sum, e) => sum + (e.montant || 0), 0);
+  }, [echeances]);
+
+  const nbDepassees = echeances.filter((e) => e.jours < 0).length;
+
+  const naviguer = (item) => onSelectResult(item.type, item.id);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        <StatCard label="Coût mensuel flotte" value={`${coutMensuelActuel.toLocaleString("fr-FR")} €`} accent="#1B2430" />
+        <StatCard label="Échéances à 90 jours" value={echeances.length} accent="#33587A" />
+        <StatCard label="Déjà dépassées" value={nbDepassees} accent="#1B2430" />
+        <StatCard label="Loyers en jeu" value={`${impactEcheances.toLocaleString("fr-FR")} €/mois`} accent="#A64B42" />
+      </div>
+
+      <div
+        style={{
+          background: "#FBF6EA",
+          border: "1px solid #F2E4BE",
+          borderRadius: 10,
+          padding: "10px 14px",
+          marginBottom: 16,
+          fontSize: 12.5,
+          color: "#8A6A1F",
+        }}
+      >
+        Coût mensuel basé sur les loyers véhicules (LLD/LOA non rachetés) actuellement actifs. Les postes
+        informatiques n'ont pas encore de coût récurrent renseigné dans l'app — cette vue s'étendra naturellement le
+        jour où ce sera le cas.
+      </div>
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#5C6B7A", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
+        Échéances à venir (90 jours), toutes catégories
+      </div>
+
+      {echeances.length === 0 ? (
+        <EmptyState icon={<Calendar size={22} />} text="Aucune échéance dans les 90 prochains jours. Rien à traiter dans l'immédiat." />
+      ) : (
+        <div style={{ background: "#FFFFFF", border: "1px solid #E1E5E9", borderRadius: 12, overflow: "hidden" }}>
+          {echeances.map((item) => (
+            <EcheanceRow key={`${item.type}-${item.id}`} item={item} onClick={() => naviguer(item)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SalariesView({
   employes,
