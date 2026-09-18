@@ -1322,6 +1322,12 @@ export default function App({ currentUser } = {}) {
     setTabState(t);
     sauvegarderOnglet(t);
   };
+  const [focusRequest, setFocusRequest] = useState(null);
+  const handleSelectResult = (type, id) => {
+    const tabParType = { salarie: "salaries", poste: "postes", voiture: "voitures" };
+    setTab(tabParType[type]);
+    setFocusRequest({ type, id });
+  };
   const [employes, setEmployes] = useState([]);
   const [postes, setPostes] = useState([]);
   const [voitures, setVoitures] = useState([]);
@@ -1620,7 +1626,7 @@ export default function App({ currentUser } = {}) {
 
   if (!loaded) {
     return (
-      <Shell tab={tab} setTab={setTab}>
+      <Shell tab={tab} setTab={setTab} employes={[]} postes={[]} voitures={[]} onSelectResult={() => {}}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 300, color: "#5C6B7A", gap: 8 }}>
           <Loader2 size={18} className="spin" />
           Chargement…
@@ -1630,7 +1636,7 @@ export default function App({ currentUser } = {}) {
   }
 
   return (
-    <Shell tab={tab} setTab={setTab}>
+    <Shell tab={tab} setTab={setTab} employes={employes} postes={postes} voitures={voitures} onSelectResult={handleSelectResult}>
       {saveError && (
         <div
           style={{
@@ -1664,6 +1670,8 @@ export default function App({ currentUser } = {}) {
           returnPoste={returnPoste}
           assignVoiture={assignVoiture}
           returnVoiture={returnVoiture}
+          focusId={focusRequest?.type === "salarie" ? focusRequest.id : null}
+          onFocusHandled={() => setFocusRequest(null)}
         />
       )}
 
@@ -1677,6 +1685,8 @@ export default function App({ currentUser } = {}) {
           assignPoste={assignPoste}
           returnPoste={returnPoste}
           setPosteEtat={setPosteEtat}
+          focusId={focusRequest?.type === "poste" ? focusRequest.id : null}
+          onFocusHandled={() => setFocusRequest(null)}
         />
       )}
 
@@ -1690,6 +1700,8 @@ export default function App({ currentUser } = {}) {
           assignVoiture={assignVoiture}
           returnVoiture={returnVoiture}
           setVoitureEtat={setVoitureEtat}
+          focusId={focusRequest?.type === "voiture" ? focusRequest.id : null}
+          onFocusHandled={() => setFocusRequest(null)}
         />
       )}
     </Shell>
@@ -1698,7 +1710,171 @@ export default function App({ currentUser } = {}) {
 
 /* ---------------------------------- Shell + navigation ---------------------------------- */
 
-function Shell({ tab, setTab, children }) {
+function GlobalSearch({ employes, postes, voitures, onSelect }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const resultats = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return { employes: [], postes: [], voitures: [] };
+    const matchEmploye = (e) =>
+      [nomComplet(e), e.matricule, e.emailPro, e.emailPerso, e.telephone, e.profil, ...(e.modules || [])]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+    const matchPoste = (p) => [p.marque, p.modele, p.numeroSerie, p.nomPC].filter(Boolean).join(" ").toLowerCase().includes(q);
+    const matchVoiture = (v) => [v.marque, v.modele, v.immatriculation].filter(Boolean).join(" ").toLowerCase().includes(q);
+    return {
+      employes: employes.filter(matchEmploye).slice(0, 5),
+      postes: postes.filter(matchPoste).slice(0, 5),
+      voitures: voitures.filter(matchVoiture).slice(0, 5),
+    };
+  }, [query, employes, postes, voitures]);
+
+  const total = resultats.employes.length + resultats.postes.length + resultats.voitures.length;
+
+  const select = (type, item) => {
+    onSelect(type, item.id);
+    setQuery("");
+    setOpen(false);
+  };
+
+  return (
+    <div style={{ position: "relative", width: 320 }}>
+      <div style={{ position: "relative" }}>
+        <Search size={15} style={{ position: "absolute", left: 10, top: 9, color: "#8B96A3" }} />
+        <input
+          style={{ ...inputStyle, paddingLeft: 32, background: "#FFFFFF" }}
+          placeholder="Rechercher partout (nom, matricule, plaque…)"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 120)}
+        />
+      </div>
+      {open && query.trim().length >= 2 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            right: 0,
+            background: "#FFFFFF",
+            border: "1px solid #D7DCE1",
+            borderRadius: 10,
+            boxShadow: "0 12px 32px rgba(20,30,40,0.16)",
+            zIndex: 40,
+            maxHeight: 360,
+            overflowY: "auto",
+            padding: 6,
+          }}
+        >
+          {total === 0 ? (
+            <div style={{ padding: "14px 10px", fontSize: 13, color: "#8B96A3", textAlign: "center" }}>
+              Aucun résultat pour « {query.trim()} ».
+            </div>
+          ) : (
+            <>
+              {resultats.employes.length > 0 && (
+                <SearchGroup icon={<Users size={12} />} title="Salariés">
+                  {resultats.employes.map((e) => (
+                    <SearchResultRow
+                      key={e.id}
+                      onSelect={() => select("salarie", e)}
+                      primary={nomComplet(e)}
+                      secondary={`Matricule ${e.matricule}`}
+                      avatar={<Avatar nom={nomComplet(e)} size={26} />}
+                    />
+                  ))}
+                </SearchGroup>
+              )}
+              {resultats.postes.length > 0 && (
+                <SearchGroup icon={<Monitor size={12} />} title="Postes (PC)">
+                  {resultats.postes.map((p) => (
+                    <SearchResultRow
+                      key={p.id}
+                      onSelect={() => select("poste", p)}
+                      primary={`${p.marque} ${p.modele}`}
+                      secondary={p.numeroSerie}
+                    />
+                  ))}
+                </SearchGroup>
+              )}
+              {resultats.voitures.length > 0 && (
+                <SearchGroup icon={<Car size={12} />} title="Véhicules">
+                  {resultats.voitures.map((v) => (
+                    <SearchResultRow
+                      key={v.id}
+                      onSelect={() => select("voiture", v)}
+                      primary={`${v.marque} ${v.modele}`}
+                      secondary={v.immatriculation}
+                    />
+                  ))}
+                </SearchGroup>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SearchGroup({ icon, title, children }) {
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "6px 8px 4px",
+          fontSize: 10.5,
+          fontWeight: 700,
+          color: "#8B96A3",
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+        }}
+      >
+        {icon}
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SearchResultRow({ onSelect, primary, secondary, avatar }) {
+  return (
+    <button
+      onMouseDown={(e) => {
+        e.preventDefault();
+        onSelect();
+      }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 9,
+        width: "100%",
+        padding: "7px 8px",
+        border: "none",
+        background: "transparent",
+        cursor: "pointer",
+        borderRadius: 7,
+        textAlign: "left",
+      }}
+    >
+      {avatar}
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#1B2430" }}>{primary}</div>
+        <div style={{ fontSize: 11, color: "#8B96A3", fontFamily: "var(--font-mono)" }}>{secondary}</div>
+      </div>
+    </button>
+  );
+}
+
+function Shell({ tab, setTab, employes, postes, voitures, onSelectResult, children }) {
   const tabs = [
     { id: "salaries", label: "Xpertiv Squad", icon: <Users size={15} /> },
     { id: "postes", label: "Postes (PC)", icon: <Monitor size={15} /> },
@@ -1767,38 +1943,48 @@ function Shell({ tab, setTab, children }) {
         <div
           style={{
             display: "flex",
-            gap: 4,
+            alignItems: "center",
+            gap: 12,
             marginBottom: 20,
-            background: "#E4E8EC",
-            padding: 4,
-            borderRadius: 10,
-            width: "fit-content",
           }}
         >
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-                padding: "8px 14px",
-                borderRadius: 7,
-                border: "none",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "var(--font-body)",
-                background: tab === t.id ? "#FFFFFF" : "transparent",
-                color: tab === t.id ? "#1B2430" : "#5C6B7A",
-                boxShadow: tab === t.id ? "0 1px 3px rgba(20,30,40,0.12)" : "none",
-              }}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
+          <div
+            style={{
+              display: "flex",
+              gap: 4,
+              background: "#E4E8EC",
+              padding: 4,
+              borderRadius: 10,
+              width: "fit-content",
+            }}
+          >
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  padding: "8px 14px",
+                  borderRadius: 7,
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  fontFamily: "var(--font-body)",
+                  background: tab === t.id ? "#FFFFFF" : "transparent",
+                  color: tab === t.id ? "#1B2430" : "#5C6B7A",
+                  boxShadow: tab === t.id ? "0 1px 3px rgba(20,30,40,0.12)" : "none",
+                }}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ flex: 1 }} />
+          <GlobalSearch employes={employes} postes={postes} voitures={voitures} onSelect={onSelectResult} />
         </div>
 
         {children}
@@ -1981,6 +2167,8 @@ function SalariesView({
   returnPoste,
   assignVoiture,
   returnVoiture,
+  focusId,
+  onFocusHandled,
 }) {
   const [search, setSearch] = useState("");
   const [filterStatut, setFilterStatut] = useState("Actif");
@@ -1989,6 +2177,13 @@ function SalariesView({
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmDeactivate, setConfirmDeactivate] = useState(null);
   const [ficheFor, setFicheFor] = useState(null);
+
+  useEffect(() => {
+    if (!focusId) return;
+    const employe = employes.find((e) => e.id === focusId);
+    if (employe) setFicheFor(employe);
+    onFocusHandled();
+  }, [focusId]);
 
   const posteOf = (employeId) => postes.find((p) => p.assignation?.employeId === employeId);
   const voitureOf = (employeId) => voitures.find((v) => v.assignation?.employeId === employeId);
@@ -2755,7 +2950,7 @@ function EmployeFormModal({ initial, employes, onClose, onSave }) {
 
 /* ---------------------------------- Vue Postes (PC) ---------------------------------- */
 
-function PostesView({ postes, employes, historique, savePoste, deletePoste, assignPoste, returnPoste, setPosteEtat }) {
+function PostesView({ postes, employes, historique, savePoste, deletePoste, assignPoste, returnPoste, setPosteEtat, focusId, onFocusHandled }) {
   const [search, setSearch] = useState("");
   const [filterEtat, setFilterEtat] = useState("Tous");
   const [showForm, setShowForm] = useState(false);
@@ -2765,6 +2960,13 @@ function PostesView({ postes, employes, historique, savePoste, deletePoste, assi
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [bitlockerFor, setBitlockerFor] = useState(null);
   const [confirmReturn, setConfirmReturn] = useState(null);
+
+  useEffect(() => {
+    if (!focusId) return;
+    const poste = postes.find((p) => p.id === focusId);
+    if (poste) setEditing(poste);
+    onFocusHandled();
+  }, [focusId]);
 
   const stats = useMemo(() => {
     return {
@@ -3275,7 +3477,7 @@ function EtatDesLieuxModal({ voitures, historique, onClose }) {
   );
 }
 
-function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoiture, assignVoiture, returnVoiture, setVoitureEtat }) {
+function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoiture, assignVoiture, returnVoiture, setVoitureEtat, focusId, onFocusHandled }) {
   const [search, setSearch] = useState("");
   const [filterEtat, setFilterEtat] = useState("Tous");
   const [showForm, setShowForm] = useState(false);
@@ -3286,6 +3488,13 @@ function VoituresView({ voitures, employes, historique, saveVoiture, deleteVoitu
   const [updatingKm, setUpdatingKm] = useState(null);
   const [showEtatDesLieux, setShowEtatDesLieux] = useState(false);
   const [confirmReturn, setConfirmReturn] = useState(null);
+
+  useEffect(() => {
+    if (!focusId) return;
+    const voiture = voitures.find((v) => v.id === focusId);
+    if (voiture) setEditing(voiture);
+    onFocusHandled();
+  }, [focusId]);
 
   const stats = useMemo(() => {
     return {
