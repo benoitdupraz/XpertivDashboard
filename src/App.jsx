@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { storage } from "./storage.js";
 import {
   Monitor,
@@ -1326,6 +1326,7 @@ export default function App({ currentUser } = {}) {
   const [postes, setPostes] = useState([]);
   const [voitures, setVoitures] = useState([]);
   const [historique, setHistorique] = useState([]);
+  const historiqueRef = useRef([]);
   const [loaded, setLoaded] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
@@ -1353,6 +1354,7 @@ export default function App({ currentUser } = {}) {
       setPostes(p);
       setVoitures(v);
       setHistorique(h);
+      historiqueRef.current = h;
       setLoaded(true);
     })();
   }, []);
@@ -1368,7 +1370,18 @@ export default function App({ currentUser } = {}) {
     }
   };
 
-  const persistHistorique = (next) => persist(STORAGE_KEYS.historiqueModifications, next, setHistorique);
+  // On passe par une ref (mise à jour de façon synchrone) plutôt que par la
+  // seule variable d'état `historique` : plusieurs actions liées (ex. un
+  // salarié qui quitte l'entreprise avec un PC ET un véhicule attribués)
+  // enregistrent chacune une entrée d'historique dans le même cycle
+  // synchrone, avant que React n'ait eu l'occasion de re-rendre le
+  // composant. Lire uniquement `historique` dans ce cas ferait que chaque
+  // appel reparte de la même base périmée, et les écritures s'écraseraient
+  // entre elles au lieu de s'accumuler.
+  const persistHistorique = (next) => {
+    historiqueRef.current = next;
+    return persist(STORAGE_KEYS.historiqueModifications, next, setHistorique);
+  };
 
   const enregistrerModification = (entite, entiteId, entiteLabel, champs) => {
     if (!champs || champs.length === 0) return;
@@ -1384,7 +1397,7 @@ export default function App({ currentUser } = {}) {
       ancienneValeur: c.ancienneValeur,
       nouvelleValeur: c.nouvelleValeur,
     }));
-    persistHistorique([...historique, ...nouvelles]);
+    persistHistorique([...historiqueRef.current, ...nouvelles]);
   };
 
   const persistEmployes = (next) => persist(STORAGE_KEYS.employes, next, setEmployes);
